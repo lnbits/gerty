@@ -9,7 +9,7 @@ can build / buy the Gerty hardware to display the information on an eink display
 
 Build your own Gerty or buy a [pre-assembled Gerty from the LNbits shop](https://shop.lnbits.com/product/gerty-a-bitcoin-assistant).
 
-![Gerty](img/gerty-satoshi2.jpg)
+![Gerty](https://github.com/lnbits/gerty/raw/main/img/gerty-satoshi2.jpg)
 
 [Find out more about the hardware Gerty here](https://github.com/lnbits/gerty/)
 
