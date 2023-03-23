@@ -15,16 +15,17 @@ Build your own Gerty or buy a [pre-assembled Gerty from the LNbits shop](https:/
 
 What does Gerty show?
 
-+ Current block height
-+ A list of Satoshi's quotes from bitcointalk.org
-+ Your LNbits wallet balance
-+ An onchain dashboard
-+ A lightning dashboard
-+ A mining dashboard
-+ Current Bitcoin price in your preferred currency
-+ Website status check
+- Current block height
+- A list of Satoshi's quotes from bitcointalk.org
+- Your LNbits wallet balance
+- An onchain dashboard
+- A lightning dashboard
+- A mining dashboard
+- Current Bitcoin price in your preferred currency
+- Website status check
 
 ## Usage
-+ Create an LNbits wallet and enable the Gerty extension
-+ Create a new Gerty and configure your Gerty options
-+ Click the smiley face icon next to your Gerty to open your Gerty dashboard. 
+
+- Create an LNbits wallet and enable the Gerty extension
+- Create a new Gerty and configure your Gerty options
+- Click the smiley face icon next to your Gerty to open your Gerty dashboard.
