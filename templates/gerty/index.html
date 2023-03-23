@@ -273,6 +273,19 @@
           <q-tooltip>Hit enter to add values</q-tooltip>
         </q-select>
 
+                    <q-input
+          filled
+          dense
+          type="number"
+          min="-24"
+          max="24"
+          step="1"
+          v-model.trim="formDialog.data.utc_offset"
+          label="UTC Time Offset"
+          placeholder='e.g. "-1" for UTC -1'
+          class="q-pb-sm"
+                    ></q-input>
+
         <q-toggle
           label="*Advanced"
           v-model="toggleStates.advanced"
