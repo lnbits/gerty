@@ -1,5 +1,6 @@
 import json
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import Depends, Query
 from loguru import logger
@@ -43,8 +44,8 @@ async def api_gertys(
 @gerty_ext.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
 async def api_link_create_or_update(
     data: Gerty,
+    gerty_id: Optional[str],
     wallet: WalletTypeInfo = Depends(get_key_type),
-    gerty_id: str = Query(None),
 ):
     if gerty_id:
         gerty = await get_gerty(gerty_id)
