@@ -2,5 +2,6 @@
   "name": "Gerty",
   "short_description": "Desktop bitcoin Assistant",
   "tile": "/gerty/static/gerty.png",
-  "contributors": ["arcbtc", "blackcoffeebtc"]
+  "contributors": ["arcbtc", "blackcoffeebtc"],
+  "min_lnbits_version": "0.11.0"
 }
