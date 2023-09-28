@@ -25,7 +25,7 @@ from .helpers import (
     get_screen_data,
     get_screen_slug_by_index,
 )
-from .models import Gerty
+from .models import CreateGerty, Gerty
 
 
 @gerty_ext.get("/api/v1/gerty", status_code=HTTPStatus.OK)
@@ -41,34 +41,38 @@ async def api_gertys(
 
 
 @gerty_ext.post("/api/v1/gerty", status_code=HTTPStatus.CREATED)
-@gerty_ext.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
-async def api_link_create_or_update(
-    data: Gerty,
-    gerty_id: Optional[str],
+async def api_link_create(
+    data: CreateGerty,
     wallet: WalletTypeInfo = Depends(get_key_type),
-):
-    if gerty_id:
-        gerty = await get_gerty(gerty_id)
-        if not gerty:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist"
-            )
+) -> Gerty:
+    return await create_gerty(wallet_id=wallet.wallet.id, data=data)
 
-        if gerty.wallet != wallet.wallet.id:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN,
-                detail="Come on, seriously, this isn't your Gerty!",
-            )
+@gerty_ext.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
+async def api_link_update(
+    data: Gerty,
+    gerty_id: str,
+    wallet: WalletTypeInfo = Depends(get_key_type),
+) -> Gerty:
 
-        data.wallet = wallet.wallet.id
-        gerty = await update_gerty(gerty_id, **data.dict())
-        assert gerty, HTTPException(
+    gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist"
         )
-    else:
-        gerty = await create_gerty(wallet_id=wallet.wallet.id, data=data)
 
-    return {**gerty.dict()}
+    if gerty.wallet != wallet.wallet.id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail="Come on, seriously, this isn't your Gerty!",
+        )
+
+    data.wallet = wallet.wallet.id
+    gerty = await update_gerty(gerty_id, **data.dict())
+    assert gerty, HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist"
+    )
+
+    return gerty
 
 
 @gerty_ext.delete("/api/v1/gerty/{gerty_id}")

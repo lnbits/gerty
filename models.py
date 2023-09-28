@@ -1,25 +1,37 @@
 from sqlite3 import Row
 
+from typing import Optional
 from fastapi import Query
 from pydantic import BaseModel
 
 
-class Gerty(BaseModel):
-    id: str = Query(None)
+class CreateGerty(BaseModel):
     name: str
+    type: str
     refresh_time: int = Query(None)
     utc_offset: int = Query(None)
     wallet: str = Query(None)
-    type: str
-    lnbits_wallets: str = Query(
-        None
-    )  # Wallets to keep an eye on, {"wallet-id": "wallet-read-key, etc"}
+    # Wallets to keep an eye on, {"wallet-id": "wallet-read-key, etc"}
+    lnbits_wallets: str = Query(None)
     mempool_endpoint: str = Query(None)  # Mempool endpoint to use
-    exchange: str = Query(
-        None
-    )  # BTC <-> Fiat exchange rate to pull ie "USD", in 0.0001 and sats
+    # BTC <-> Fiat exchange rate to pull ie "USD", in 0.0001 and sats
+    exchange: str = Query(None)
     display_preferences: str = Query(None)
     urls: str = Query(None)
+
+
+class Gerty(BaseModel):
+    id: str
+    name: str
+    type: str
+    utc_offset: int
+    display_preferences: str
+    refresh_time: Optional[int]
+    wallet: Optional[str]
+    lnbits_wallets: Optional[str]
+    mempool_endpoint: Optional[str]
+    exchange: Optional[str]
+    urls: Optional[str]
 
     @classmethod
     def from_row(cls, row: Row) -> "Gerty":
