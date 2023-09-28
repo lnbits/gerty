@@ -8,10 +8,10 @@ from loguru import logger
 from lnbits.helpers import urlsafe_short_hash
 
 from . import db
-from .models import Gerty, MempoolEndpoint
+from .models import CreateGerty, Gerty, MempoolEndpoint
 
 
-async def create_gerty(wallet_id: str, data: Gerty) -> Gerty:
+async def create_gerty(wallet_id: str, data: CreateGerty) -> Gerty:
     gerty_id = urlsafe_short_hash()
     await db.execute(
         """
