@@ -47,6 +47,7 @@ async def api_link_create(
 ) -> Gerty:
     return await create_gerty(wallet_id=wallet.wallet.id, data=data)
 
+
 @gerty_ext.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
 async def api_link_update(
     data: Gerty,

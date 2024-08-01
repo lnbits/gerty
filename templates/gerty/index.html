@@ -275,7 +275,7 @@
           <q-tooltip>Hit enter to add values</q-tooltip>
         </q-select>
 
-                    <q-input
+        <q-input
           filled
           dense
           type="number"
@@ -286,7 +286,7 @@
           label="UTC Time Offset"
           placeholder='e.g. "-1" for UTC -1'
           class="q-pb-sm"
-                    ></q-input>
+        ></q-input>
 
         <q-toggle
           label="*Advanced"
@@ -631,8 +631,8 @@
           self.toggleStates.onchain
         self.formDialog.data.display_preferences.onchain_difficulty_retarget_date =
           self.toggleStates.onchain
-        self.formDialog.data.display_preferences.onchain_difficulty_blocks_remaining = !self
-          .toggleStates.onchain
+        self.formDialog.data.display_preferences.onchain_difficulty_blocks_remaining =
+          !self.toggleStates.onchain
         self.formDialog.data.display_preferences.onchain_difficulty_epoch_time_remaining =
           self.toggleStates.onchain
         self.formDialog.data.display_preferences.onchain_block_height =
