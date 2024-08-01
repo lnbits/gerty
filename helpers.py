@@ -6,19 +6,21 @@ from datetime import datetime, timedelta
 from typing import List
 
 import httpx
-from loguru import logger
-
 from lnbits.core.crud import get_wallet_for_key
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import satoshis_amount_as_fiat
+from loguru import logger
 
 from .crud import get_mempool_info
-from .number_prefixer import *  # noqa: F403
+from .number_prefixer import si_format
 
 
 def get_percent_difference(current, previous, precision=3):
     difference = (current - previous) / current * 100
-    return "{0}{1}%".format("+" if difference > 0 else "", round(difference, precision))
+    return "{plus:}{delta:}%".format(
+        plus="+" if difference > 0 else "",
+        delta=round(difference, precision),
+    )
 
 
 # A helper function get a nicely formated dict for the text
@@ -29,6 +31,10 @@ def get_text_item_dict(
     y_pos: int = -1,
     gerty_type: str = "Gerty",
 ):
+
+    # TODO: gerty_type is not used
+    assert isinstance(gerty_type, str)
+
     # Get line size by font size
     line_width = 20
     if font_size <= 12:
@@ -45,13 +51,13 @@ def get_text_item_dict(
     word_list = wrapper.wrap(text=text)
     # logger.debug("number of chars = {0}".format(len(text)))
 
-    multilineText = "\n".join(word_list)
+    multiline_text = "\n".join(word_list)
     # logger.debug("number of lines = {0}".format(len(word_list)))
 
     # logger.debug('multilineText')
     # logger.debug(multilineText)
 
-    data_text = {"value": multilineText, "size": font_size}
+    data_text = {"value": multiline_text, "size": font_size}
     if x_pos == -1 and y_pos == -1:
         data_text["position"] = "center"
     else:
@@ -60,11 +66,11 @@ def get_text_item_dict(
     return data_text
 
 
-def get_date_suffix(dayNumber):
-    if 4 <= dayNumber <= 20 or 24 <= dayNumber <= 30:
+def get_date_suffix(day_number):
+    if 4 <= day_number <= 20 or 24 <= day_number <= 30:
         return "th"
     else:
-        return ["st", "nd", "rd"][dayNumber % 10 - 1]
+        return ["st", "nd", "rd"][day_number % 10 - 1]
 
 
 def get_time_remaining(seconds, granularity=2):
@@ -84,13 +90,13 @@ def get_time_remaining(seconds, granularity=2):
             seconds -= value * count
             if value == 1:
                 name = name.rstrip("s")
-            result.append("{} {}".format(round(value), name))
+            result.append(f"{round(value)} {name}")
     return ", ".join(result[:granularity])
 
 
 # format a number for nice display output
 def format_number(number, precision=None):
-    return "{:,}".format(round(number, precision))
+    return f"{round(number, precision):,}"
 
 
 async def get_mining_dashboard(gerty):
@@ -99,8 +105,8 @@ async def get_mining_dashboard(gerty):
         # current hashrate
         r = await get_mempool_info("hashrate_1w", gerty)
         data = r
-        hashrateNow = data["currentHashrate"]
-        hashrateOneWeekAgo = data["hashrates"][6]["avgHashrate"]
+        hashrate_now = data["currentHashrate"]
+        hashrate_one_week_ago = data["hashrates"][6]["avgHashrate"]
 
         text = []
         text.append(
@@ -110,18 +116,15 @@ async def get_mining_dashboard(gerty):
         )
         text.append(
             get_text_item_dict(
-                text="{0}hash".format(
-                    si_format(hashrateNow, 6, True, " ")  # noqa: F405
-                ),
+                text="{rate:}hash".format(rate=si_format(hashrate_now, 6, True, " ")),
                 font_size=20,
                 gerty_type=gerty.type,
             )
         )
+        hashrate_diff = get_percent_difference(hashrate_now, hashrate_one_week_ago, 3)
         text.append(
             get_text_item_dict(
-                text="{0} vs 7 days ago".format(
-                    get_percent_difference(hashrateNow, hashrateOneWeekAgo, 3)
-                ),
+                text=f"{hashrate_diff} vs 7 days ago",
                 font_size=12,
                 gerty_type=gerty.type,
             )
@@ -132,7 +135,7 @@ async def get_mining_dashboard(gerty):
 
         # timeAvg
         text = []
-        progress = "{0}%".format(round(r["progressPercent"], 2))
+        progress = "{progress:}%".format(progress=round(r["progressPercent"], 2))
         text.append(
             get_text_item_dict(
                 text="Progress through current epoch",
@@ -164,9 +167,9 @@ async def get_mining_dashboard(gerty):
         )
         areas.append(text)
 
-        # difficultyChange
+        # difficulty_change
         text = []
-        difficultyChange = round(r["difficultyChange"], 2)
+        difficulty_change = round(r["difficulty_change"], 2)
         text.append(
             get_text_item_dict(
                 text="Estimated difficulty change",
@@ -176,8 +179,9 @@ async def get_mining_dashboard(gerty):
         )
         text.append(
             get_text_item_dict(
-                text="{0}{1}%".format(
-                    "+" if difficultyChange > 0 else "", round(difficultyChange, 2)
+                text="{plus:}{change:}%".format(
+                    plus="+" if difficulty_change > 0 else "",
+                    change=round(difficulty_change, 2),
                 ),
                 font_size=40,
                 gerty_type=gerty.type,
@@ -214,7 +218,7 @@ async def get_lightning_stats(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="{0} in last 7 days".format(difference),
+            text=f"{difference} in last 7 days",
             font_size=12,
             gerty_type=gerty.type,
         )
@@ -237,7 +241,7 @@ async def get_lightning_stats(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="{0} in last 7 days".format(difference),
+            text=f"{difference} in last 7 days",
             font_size=12,
             gerty_type=gerty.type,
         )
@@ -251,7 +255,7 @@ async def get_lightning_stats(gerty):
     avg_capacity = float(data["latest"]["total_capacity"]) / float(100000000)
     text.append(
         get_text_item_dict(
-            text="{0} BTC".format(format_number(avg_capacity, 2)),
+            text=f"{format_number(avg_capacity, 2)} BTC",
             font_size=20,
             gerty_type=gerty.type,
         )
@@ -262,7 +266,7 @@ async def get_lightning_stats(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="{0} in last 7 days".format(difference),
+            text=f"{difference} in last 7 days",
             font_size=12,
             gerty_type=gerty.type,
         )
@@ -277,7 +281,9 @@ async def get_lightning_stats(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="{0} sats".format(format_number(data["latest"]["avg_capacity"])),
+            text="{cap:} sats".format(
+                cap=format_number(data["latest"]["avg_capacity"])
+            ),
             font_size=20,
             gerty_type=gerty.type,
         )
@@ -288,7 +294,7 @@ async def get_lightning_stats(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="{0} in last 7 days".format(difference),
+            text=f"{difference} in last 7 days",
             font_size=12,
             gerty_type=gerty.type,
         )
@@ -299,17 +305,17 @@ async def get_lightning_stats(gerty):
 
 
 def get_next_update_time(sleep_time_seconds: int = 0, utc_offset: int = 0):
-    utc_now = datetime.utcnow()
+    utc_now = datetime.now()
     next_refresh_time = utc_now + timedelta(0, sleep_time_seconds)
     local_refresh_time = next_refresh_time + timedelta(hours=utc_offset)
-    return "{0} {1}".format(
-        "I'll wake up at" if gerty_should_sleep(utc_offset) else "Next update at",
-        local_refresh_time.strftime("%H:%M"),
+    return "{next:} {time:}".format(
+        next="I'll wake up at" if gerty_should_sleep(utc_offset) else "Next update at",
+        time=local_refresh_time.strftime("%H:%M"),
     )
 
 
 def gerty_should_sleep(utc_offset: int = 0):
-    utc_now = datetime.utcnow()
+    utc_now = datetime.now()
     local_time = utc_now + timedelta(hours=utc_offset)
     hours = int(local_time.strftime("%H"))
     if hours >= 22 and hours <= 23:
@@ -322,8 +328,8 @@ async def get_mining_stat(stat_slug: str, gerty):
     text = []
     if stat_slug == "mining_current_hash_rate":
         stat = await api_get_mining_stat(stat_slug, gerty)
-        current = "{0}hash".format(
-            si_format(stat["current"], 6, True, " ")  # noqa: F405
+        current = "{current:}hash".format(
+            current=si_format(stat["current"], 6, True, " ")
         )
         text.append(
             get_text_item_dict(
@@ -339,7 +345,7 @@ async def get_mining_stat(stat_slug: str, gerty):
         )
         text.append(
             get_text_item_dict(
-                text="{0} in last 7 days".format(difference),
+                text=f"{difference} in last 7 days",
                 font_size=12,
                 gerty_type=gerty.type,
             )
@@ -361,12 +367,14 @@ async def get_mining_stat(stat_slug: str, gerty):
         )
         text.append(
             get_text_item_dict(
-                text="{0} since last adjustment".format(difference),
+                text=f"{difference} since last adjustment",
                 font_size=12,
                 gerty_type=gerty.type,
             )
         )
-        # text.append(get_text_item_dict("Required threshold for mining proof-of-work", 12))
+        # text.append(get_text_item_dict(
+        # "Required threshold for mining proof-of-work", 12)
+        # )
     return text
 
 
@@ -389,14 +397,14 @@ async def api_get_mining_stat(stat_slug: str, gerty):
 
 
 async def get_satoshi():
-    maxQuoteLength = 650
+    maxquotelength = 650
     with open(
         os.path.join(settings.lnbits_path, "extensions/gerty/static/satoshi.json")
     ) as fd:
-        satoshiQuotes = json.load(fd)
-    quote = satoshiQuotes[random.randint(0, len(satoshiQuotes) - 1)]
+        satoshiquotes = json.load(fd)
+    quote = satoshiquotes[random.randint(0, len(satoshiquotes) - 1)]
     # logger.debug(quote.text)
-    if len(quote["text"]) > maxQuoteLength:
+    if len(quote["text"]) > maxquotelength:
         logger.trace("Quote is too long, getting another")
         return await get_satoshi()
     else:
@@ -429,14 +437,14 @@ async def get_screen_data(screen_num: int, screens_list: list, gerty):
             text = []
             text.append(
                 get_text_item_dict(
-                    text="{0}'s Wallet".format(wallet["name"]),
+                    text="{name:}'s Wallet".format(name=wallet["name"]),
                     font_size=20,
                     gerty_type=gerty.type,
                 )
             )
             text.append(
                 get_text_item_dict(
-                    text="{0} sats".format(format_number(wallet["balance"])),
+                    text="{sats:} sats".format(sats=format_number(wallet["balance"])),
                     font_size=40,
                     gerty_type=gerty.type,
                 )
@@ -462,7 +470,7 @@ async def get_screen_data(screen_num: int, screens_list: list, gerty):
                             gerty_type=gerty.type,
                         )
                     )
-                except:
+                except Exception:
                     text = []
                     text.append(
                         get_text_item_dict(
@@ -473,7 +481,7 @@ async def get_screen_data(screen_num: int, screens_list: list, gerty):
                     )
                     text.append(
                         get_text_item_dict(
-                            text=str("DOWN"),
+                            text="DOWN",
                             font_size=40,
                             gerty_type=gerty.type,
                         )
@@ -546,7 +554,7 @@ async def get_dashboard(gerty):
     )
     text.append(
         get_text_item_dict(
-            text="BTC{0} price".format(gerty.exchange),
+            text=f"BTC{gerty.exchange} price",
             font_size=15,
             gerty_type=gerty.type,
         )
@@ -559,12 +567,14 @@ async def get_dashboard(gerty):
     for wallet in wallets:
         text.append(
             get_text_item_dict(
-                text="{0}".format(wallet["name"]), font_size=15, gerty_type=gerty.type
+                text="{name}".format(name=wallet["name"]),
+                font_size=15,
+                gerty_type=gerty.type,
             )
         )
         text.append(
             get_text_item_dict(
-                text="{0} sats".format(format_number(wallet["balance"])),
+                text="{sats:} sats".format(sats=format_number(wallet["balance"])),
                 font_size=20,
                 gerty_type=gerty.type,
             )
@@ -656,7 +666,7 @@ async def get_satoshi_quotes(gerty):
         if quote["date"]:
             text.append(
                 get_text_item_dict(
-                    text="Satoshi Nakamoto - {0}".format(quote["date"]),
+                    text="Satoshi Nakamoto - {date:}".format(date=quote["date"]),
                     font_size=15,
                     gerty_type=gerty.type,
                 )
@@ -674,7 +684,7 @@ async def get_exchange_rate(gerty):
                 price = format_number(amount)
                 text.append(
                     get_text_item_dict(
-                        text="Current {0}/BTC price".format(gerty.exchange),
+                        text=f"Current {gerty.exchange}/BTC price",
                         font_size=15,
                         gerty_type=gerty.type,
                     )
@@ -682,7 +692,7 @@ async def get_exchange_rate(gerty):
                 text.append(
                     get_text_item_dict(text=price, font_size=80, gerty_type=gerty.type)
                 )
-        except:
+        except Exception:
             pass
     return text
 
@@ -706,9 +716,7 @@ async def get_onchain_stat(stat_slug: str, gerty):
                 )
             )
             text.append(
-                get_text_item_dict(
-                    text="{0}%".format(stat), font_size=80, gerty_type=gerty.type
-                )
+                get_text_item_dict(text=f"{stat}%", font_size=80, gerty_type=gerty.type)
             )
         elif stat_slug == "onchain_difficulty_retarget_date":
             stat = r["estimatedRetargetDate"]
@@ -734,7 +742,7 @@ async def get_onchain_stat(stat_slug: str, gerty):
             )
             text.append(
                 get_text_item_dict(
-                    text="{0}".format(format_number(stat)),
+                    text=f"{format_number(stat)}",
                     font_size=80,
                     gerty_type=gerty.type,
                 )
@@ -784,9 +792,7 @@ async def get_onchain_dashboard(gerty):
             )
         )
         text.append(
-            get_text_item_dict(
-                text="{0}%".format(stat), font_size=40, gerty_type=gerty.type
-            )
+            get_text_item_dict(text=f"{stat}%", font_size=40, gerty_type=gerty.type)
         )
         areas.append(text)
 
@@ -810,7 +816,7 @@ async def get_onchain_dashboard(gerty):
         )
         text.append(
             get_text_item_dict(
-                text="{0}".format(format_number(stat)),
+                text=f"{format_number(stat)}",
                 font_size=40,
                 gerty_type=gerty.type,
             )
@@ -844,7 +850,7 @@ async def get_mempool_stat(stat_slug: str, gerty):
                 )
                 text.append(
                     get_text_item_dict(
-                        text="{0}".format(format_number(stat)),
+                        text=f"{format_number(stat)}",
                         font_size=80,
                         gerty_type=gerty.type,
                     )
@@ -861,16 +867,24 @@ async def get_mempool_stat(stat_slug: str, gerty):
 
             pos_y = 280 + y_offset
             text.append(
-                get_text_item_dict("{0}".format("None"), 15, 30, pos_y, gerty.type)
+                get_text_item_dict(
+                    "{label:}".format(label="None"), 15, 30, pos_y, gerty.type
+                )
             )
             text.append(
-                get_text_item_dict("{0}".format("Low"), 15, 235, pos_y, gerty.type)
+                get_text_item_dict(
+                    "{label:}".format(label="Low"), 15, 235, pos_y, gerty.type
+                )
             )
             text.append(
-                get_text_item_dict("{0}".format("Medium"), 15, 460, pos_y, gerty.type)
+                get_text_item_dict(
+                    "{label:}".format(label="Medium"), 15, 460, pos_y, gerty.type
+                )
             )
             text.append(
-                get_text_item_dict("{0}".format("High"), 15, 750, pos_y, gerty.type)
+                get_text_item_dict(
+                    "{label:}".format(label="High"), 15, 750, pos_y, gerty.type
+                )
             )
 
             pos_y = 340 + y_offset
@@ -879,10 +893,10 @@ async def get_mempool_stat(stat_slug: str, gerty):
             fee_rate = fees["economyFee"]
             text.append(
                 get_text_item_dict(
-                    text="{0} {1}{2}".format(
-                        format_number(fee_rate),
-                        ("sat" if fee_rate == 1 else "sats"),
-                        fee_append,
+                    text="{feerate:} {feerate2:}{feerate3:}".format(
+                        feerate=format_number(fee_rate),
+                        feerate2="sat" if fee_rate == 1 else "sats",
+                        feerate3=fee_append,
                     ),
                     font_size=font_size,
                     x_pos=30,
@@ -894,10 +908,10 @@ async def get_mempool_stat(stat_slug: str, gerty):
             fee_rate = fees["hourFee"]
             text.append(
                 get_text_item_dict(
-                    text="{0} {1}{2}".format(
-                        format_number(fee_rate),
-                        ("sat" if fee_rate == 1 else "sats"),
-                        fee_append,
+                    text="{feerate:} {feerate2:}{feerate3:}".format(
+                        feerate=format_number(fee_rate),
+                        feerate2="sat" if fee_rate == 1 else "sats",
+                        feerate3=fee_append,
                     ),
                     font_size=font_size,
                     x_pos=235,
@@ -909,10 +923,10 @@ async def get_mempool_stat(stat_slug: str, gerty):
             fee_rate = fees["halfHourFee"]
             text.append(
                 get_text_item_dict(
-                    text="{0} {1}{2}".format(
-                        format_number(fee_rate),
-                        ("sat" if fee_rate == 1 else "sats"),
-                        fee_append,
+                    text="{feerate:} {feerate2:}{feerate3:}".format(
+                        feerate=format_number(fee_rate),
+                        feerate2="sat" if fee_rate == 1 else "sats",
+                        feerate3=fee_append,
                     ),
                     font_size=font_size,
                     x_pos=460,
@@ -924,10 +938,10 @@ async def get_mempool_stat(stat_slug: str, gerty):
             fee_rate = fees["fastestFee"]
             text.append(
                 get_text_item_dict(
-                    text="{0} {1}{2}".format(
-                        format_number(fee_rate),
-                        ("sat" if fee_rate == 1 else "sats"),
-                        fee_append,
+                    text="{feerate:} {feerate2:}{feerate3:}".format(
+                        feerate=format_number(fee_rate),
+                        feerate2="sat" if fee_rate == 1 else "sats",
+                        feerate3=fee_append,
                     ),
                     font_size=font_size,
                     x_pos=750,

@@ -1,15 +1,13 @@
 import json
 from http import HTTPStatus
-from typing import Optional
 
-from fastapi import Depends, Query
+from fastapi import APIRouter, Depends, Query
+from lnbits.core.crud import get_user
+from lnbits.core.models import WalletTypeInfo
+from lnbits.decorators import get_key_type, require_admin_key
 from loguru import logger
 from starlette.exceptions import HTTPException
 
-from lnbits.core.crud import get_user
-from lnbits.decorators import WalletTypeInfo, get_key_type, require_admin_key
-
-from . import gerty_ext
 from .crud import (
     create_gerty,
     delete_gerty,
@@ -27,8 +25,10 @@ from .helpers import (
 )
 from .models import CreateGerty, Gerty
 
+gerty_api_router = APIRouter()
 
-@gerty_ext.get("/api/v1/gerty", status_code=HTTPStatus.OK)
+
+@gerty_api_router.get("/api/v1/gerty", status_code=HTTPStatus.OK)
 async def api_gertys(
     all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
 ):
@@ -40,7 +40,7 @@ async def api_gertys(
     return [gerty.dict() for gerty in await get_gertys(wallet_ids)]
 
 
-@gerty_ext.post("/api/v1/gerty", status_code=HTTPStatus.CREATED)
+@gerty_api_router.post("/api/v1/gerty", status_code=HTTPStatus.CREATED)
 async def api_link_create(
     data: CreateGerty,
     wallet: WalletTypeInfo = Depends(get_key_type),
@@ -48,7 +48,7 @@ async def api_link_create(
     return await create_gerty(wallet_id=wallet.wallet.id, data=data)
 
 
-@gerty_ext.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
+@gerty_api_router.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
 async def api_link_update(
     data: Gerty,
     gerty_id: str,
@@ -76,7 +76,7 @@ async def api_link_update(
     return gerty
 
 
-@gerty_ext.delete("/api/v1/gerty/{gerty_id}")
+@gerty_api_router.delete("/api/v1/gerty/{gerty_id}")
 async def api_gerty_delete(
     gerty_id: str, wallet: WalletTypeInfo = Depends(require_admin_key)
 ):
@@ -94,12 +94,12 @@ async def api_gerty_delete(
     raise HTTPException(status_code=HTTPStatus.NO_CONTENT)
 
 
-@gerty_ext.get("/api/v1/gerty/satoshiquote", status_code=HTTPStatus.OK)
+@gerty_api_router.get("/api/v1/gerty/satoshiquote", status_code=HTTPStatus.OK)
 async def api_gerty_satoshi():
     return await get_satoshi()
 
 
-@gerty_ext.get("/api/v1/gerty/pages/{gerty_id}/{p}")
+@gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
 async def api_gerty_json(gerty_id: str, p: int = 0):  # page number
     gerty = await get_gerty(gerty_id)
 
@@ -152,43 +152,43 @@ async def api_gerty_json(gerty_id: str, p: int = 0):  # page number
 ###########CACHED MEMPOOL##############
 
 
-@gerty_ext.get("/api/v1/gerty/fees-recommended/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/fees-recommended/{gerty_id}")
 async def api_gerty_get_fees_recommended(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("fees_recommended", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/hashrate-1w/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/hashrate-1w/{gerty_id}")
 async def api_gerty_get_hashrate_1w(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("hashrate_1w", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/hashrate-1m/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/hashrate-1m/{gerty_id}")
 async def api_gerty_get_hashrate_1m(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("hashrate_1m", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/statistics/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/statistics/{gerty_id}")
 async def api_gerty_get_statistics(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("statistics", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/difficulty-adjustment/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/difficulty-adjustment/{gerty_id}")
 async def api_gerty_get_difficulty_adjustment(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("difficulty_adjustment", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/tip-height/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/tip-height/{gerty_id}")
 async def api_gerty_get_tip_height(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("tip_height", gerty)
 
 
-@gerty_ext.get("/api/v1/gerty/mempool/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/mempool/{gerty_id}")
 async def api_gerty_get_mempool(gerty_id):
     gerty = await get_gerty(gerty_id)
     return await get_mempool_info("mempool", gerty)
