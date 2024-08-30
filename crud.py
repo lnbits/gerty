@@ -3,12 +3,13 @@ import time
 from typing import List, Optional, Union
 
 import httpx
+from lnbits.db import Database
+from lnbits.helpers import urlsafe_short_hash
 from loguru import logger
 
-from lnbits.helpers import urlsafe_short_hash
-
-from . import db
 from .models import CreateGerty, Gerty, MempoolEndpoint
+
+db = Database("ext_gerty")
 
 
 async def create_gerty(wallet_id: str, data: CreateGerty) -> Gerty:
@@ -83,17 +84,17 @@ async def delete_gerty(gerty_id: str) -> None:
 #############MEMPOOL###########
 
 
-async def get_mempool_info(endPoint: str, gerty) -> dict:
-    logger.debug(endPoint)
+async def get_mempool_info(end_point: str, gerty) -> dict:
+    logger.debug(end_point)
     endpoints = MempoolEndpoint()
     url = ""
     for endpoint in endpoints:
-        if endPoint == endpoint[0]:
+        if end_point == endpoint[0]:
             url = endpoint[1]
     row = await db.fetchone(
         "SELECT * FROM gerty.mempool WHERE endpoint = ? AND mempool_endpoint = ?",
         (
-            endPoint,
+            end_point,
             gerty.mempool_endpoint,
         ),
     )
@@ -116,7 +117,7 @@ async def get_mempool_info(endPoint: str, gerty) -> dict:
                 (
                     mempool_id,
                     json.dumps(response.json()),
-                    endPoint,
+                    end_point,
                     time.time(),
                     gerty.mempool_endpoint,
                 ),
@@ -126,11 +127,12 @@ async def get_mempool_info(endPoint: str, gerty) -> dict:
         async with httpx.AsyncClient() as client:
             response = await client.get(gerty.mempool_endpoint + url)
             await db.execute(
-                "UPDATE gerty.mempool SET data = ?, time = ? WHERE endpoint = ? AND mempool_endpoint = ?",
+                "UPDATE gerty.mempool SET data = ?, time = ? "
+                "WHERE endpoint = ? AND mempool_endpoint = ?",
                 (
                     json.dumps(response.json()),
                     time.time(),
-                    endPoint,
+                    end_point,
                     gerty.mempool_endpoint,
                 ),
             )
