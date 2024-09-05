@@ -4,7 +4,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Query
 from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
-from lnbits.decorators import get_key_type, require_admin_key
+from lnbits.decorators import require_admin_key, require_invoice_key
 from loguru import logger
 from starlette.exceptions import HTTPException
 
@@ -30,29 +30,29 @@ gerty_api_router = APIRouter()
 
 @gerty_api_router.get("/api/v1/gerty", status_code=HTTPStatus.OK)
 async def api_gertys(
-    all_wallets: bool = Query(False), wallet: WalletTypeInfo = Depends(get_key_type)
-):
-    wallet_ids = [wallet.wallet.id]
+    all_wallets: bool = Query(False),
+    key_info: WalletTypeInfo = Depends(require_invoice_key),
+) -> list[Gerty]:
+    wallet_ids = [key_info.wallet.id]
     if all_wallets:
-        user = await get_user(wallet.wallet.user)
+        user = await get_user(key_info.wallet.user)
         wallet_ids = user.wallet_ids if user else []
-
-    return [gerty.dict() for gerty in await get_gertys(wallet_ids)]
+    return await get_gertys(wallet_ids)
 
 
 @gerty_api_router.post("/api/v1/gerty", status_code=HTTPStatus.CREATED)
 async def api_link_create(
     data: CreateGerty,
-    wallet: WalletTypeInfo = Depends(get_key_type),
+    key_info: WalletTypeInfo = Depends(require_admin_key),
 ) -> Gerty:
-    return await create_gerty(wallet_id=wallet.wallet.id, data=data)
+    return await create_gerty(wallet_id=key_info.wallet.id, data=data)
 
 
 @gerty_api_router.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)
 async def api_link_update(
     data: Gerty,
     gerty_id: str,
-    wallet: WalletTypeInfo = Depends(get_key_type),
+    key_info: WalletTypeInfo = Depends(require_admin_key),
 ) -> Gerty:
 
     gerty = await get_gerty(gerty_id)
@@ -61,18 +61,17 @@ async def api_link_update(
             status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist"
         )
 
-    if gerty.wallet != wallet.wallet.id:
+    if gerty.wallet != key_info.wallet.id:
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN,
             detail="Come on, seriously, this isn't your Gerty!",
         )
 
-    data.wallet = wallet.wallet.id
-    gerty = await update_gerty(gerty_id, **data.dict())
-    assert gerty, HTTPException(
-        status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist"
-    )
+    for key, value in data.dict().items():
+        setattr(gerty, key, value)
 
+    gerty.wallet = key_info.wallet.id
+    gerty = await update_gerty(gerty)
     return gerty
 
 

@@ -4,64 +4,40 @@ from typing import List, Optional, Union
 
 import httpx
 from lnbits.db import Database
-from lnbits.helpers import urlsafe_short_hash
+from lnbits.helpers import insert_query, update_query, urlsafe_short_hash
 from loguru import logger
 
-from .models import CreateGerty, Gerty, MempoolEndpoint
+from .models import CreateGerty, Gerty, Mempool, MempoolEndpoint
 
 db = Database("ext_gerty")
 
 
 async def create_gerty(wallet_id: str, data: CreateGerty) -> Gerty:
     gerty_id = urlsafe_short_hash()
-    await db.execute(
-        """
-        INSERT INTO gerty.gertys (
-        id,
-        name,
-        utc_offset,
-        type,
-        wallet,
-        lnbits_wallets,
-        mempool_endpoint,
-        exchange,
-        display_preferences,
-        refresh_time,
-        urls
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            gerty_id,
-            data.name,
-            data.utc_offset,
-            data.type,
-            wallet_id,
-            data.lnbits_wallets,
-            data.mempool_endpoint,
-            data.exchange,
-            data.display_preferences,
-            data.refresh_time,
-            data.urls,
-        ),
+    gerty = Gerty(
+        id=gerty_id,
+        wallet=wallet_id,
+        **data.dict(),
     )
-
-    gerty = await get_gerty(gerty_id)
-    assert gerty, "Newly created gerty couldn't be retrieved"
+    await db.execute(
+        insert_query("gerty.gertys", gerty),
+        gerty.dict(),
+    )
     return gerty
 
 
-async def update_gerty(gerty_id: str, **kwargs) -> Optional[Gerty]:
-    q = ", ".join([f"{field[0]} = ?" for field in kwargs.items()])
+async def update_gerty(gerty: Gerty) -> Gerty:
     await db.execute(
-        f"UPDATE gerty.gertys SET {q} WHERE id = ?", (*kwargs.values(), gerty_id)
+        update_query("gerty.gertys", gerty),
+        gerty.dict(),
     )
-
-    return await get_gerty(gerty_id)
+    return gerty
 
 
 async def get_gerty(gerty_id: str) -> Optional[Gerty]:
-    row = await db.fetchone("SELECT * FROM gerty.gertys WHERE id = ?", (gerty_id,))
+    row = await db.fetchone(
+        "SELECT * FROM gerty.gertys WHERE id = :id", {"id": gerty_id}
+    )
     return Gerty(**row) if row else None
 
 
@@ -69,19 +45,14 @@ async def get_gertys(wallet_ids: Union[str, List[str]]) -> List[Gerty]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
 
-    q = ",".join(["?"] * len(wallet_ids))
-    rows = await db.fetchall(
-        f"SELECT * FROM gerty.gertys WHERE wallet IN ({q})", (*wallet_ids,)
-    )
+    q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
+    rows = await db.fetchall(f"SELECT * FROM gerty.gertys WHERE wallet IN ({q})")
 
     return [Gerty(**row) for row in rows]
 
 
 async def delete_gerty(gerty_id: str) -> None:
-    await db.execute("DELETE FROM gerty.gertys WHERE id = ?", (gerty_id,))
-
-
-#############MEMPOOL###########
+    await db.execute("DELETE FROM gerty.gertys WHERE id = :id", {"id": gerty_id})
 
 
 async def get_mempool_info(end_point: str, gerty) -> dict:
@@ -92,49 +63,42 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
         if end_point == endpoint[0]:
             url = endpoint[1]
     row = await db.fetchone(
-        "SELECT * FROM gerty.mempool WHERE endpoint = ? AND mempool_endpoint = ?",
-        (
-            end_point,
-            gerty.mempool_endpoint,
-        ),
+        """
+        SELECT * FROM gerty.mempool
+        WHERE endpoint = :endpoint AND mempool_endpoint = :mempool_endpoint
+        """,
+        {"endpoint": end_point, "mempool_endpoint": gerty.mempool_endpoint},
     )
     if not row:
         async with httpx.AsyncClient() as client:
             response = await client.get(gerty.mempool_endpoint + url)
-            logger.debug(gerty.mempool_endpoint + url)
             mempool_id = urlsafe_short_hash()
+            mempool = Mempool(
+                id=mempool_id,
+                data=json.dumps(response.json()),
+                endpoint=end_point,
+                time=int(time.time()),
+                mempool_endpoint=gerty.mempool_endpoint,
+            )
             await db.execute(
-                """
-                INSERT INTO gerty.mempool (
-                    id,
-                    data,
-                    endpoint,
-                    time,
-                    mempool_endpoint
-                )
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    mempool_id,
-                    json.dumps(response.json()),
-                    end_point,
-                    time.time(),
-                    gerty.mempool_endpoint,
-                ),
+                insert_query("gerty.mempool", mempool),
+                mempool.dict(),
             )
             return response.json()
-    if float(time.time()) - row.time > 20:
+    if float(time.time()) - row["time"] > 20:
         async with httpx.AsyncClient() as client:
             response = await client.get(gerty.mempool_endpoint + url)
             await db.execute(
-                "UPDATE gerty.mempool SET data = ?, time = ? "
-                "WHERE endpoint = ? AND mempool_endpoint = ?",
-                (
-                    json.dumps(response.json()),
-                    time.time(),
-                    end_point,
-                    gerty.mempool_endpoint,
-                ),
+                """
+                UPDATE gerty.mempool SET data = :data, time = :time
+                WHERE endpoint = :endpoint AND mempool_endpoint = :mempool_endpoint
+                """,
+                {
+                    "data": json.dumps(response.json()),
+                    "time": int(time.time()),
+                    "endpoint": end_point,
+                    "mempool_endpoint": gerty.mempool_endpoint,
+                },
             )
             return response.json()
-    return json.loads(row.data)
+    return json.loads(row["data"])
