@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.templating import Jinja2Templates
 from lnbits.core.models import User
 from lnbits.decorators import check_user_exists
 from lnbits.helpers import template_renderer
@@ -10,14 +9,11 @@ from starlette.responses import HTMLResponse
 
 from .crud import get_gerty
 
+gerty_generic_router = APIRouter()
+
 
 def gerty_renderer():
     return template_renderer(["gerty/templates"])
-
-
-templates = Jinja2Templates(directory="templates")
-
-gerty_generic_router = APIRouter()
 
 
 @gerty_generic_router.get("/", response_class=HTMLResponse)
