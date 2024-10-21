@@ -22,12 +22,11 @@
         <q-table
           dense
           flat
-          :data="gertys"
+          :rows="gertys"
           row-key="id"
           :columns="gertysTable.columns"
-          :pagination.sync="gertysTable.pagination"
+          v-model:pagination="gertysTable.pagination"
         >
-          {% raw %}
           <template v-slot:header="props">
             <q-tr :props="props">
               <q-th auto-width></q-th>
@@ -36,8 +35,8 @@
                 :key="col.name"
                 :props="props"
                 :class="`col__${col.name} text-truncate elipsis`"
+                v-text="col.label"
               >
-                {{ col.label }}
               </q-th>
               <q-th auto-width></q-th>
               <q-th auto-width></q-th>
@@ -72,8 +71,9 @@
                 </q-btn>
               </q-td>
               <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                {{ (col.name == 'tip_options' && col.value ?
-                JSON.parse(col.value).join(", ") : col.value) }}
+                <span
+                  v-text="col.name == 'tip_options' && col.value ? JSON.parse(col.value).join(', ') : col.value"
+                ></span>
               </q-td>
               <q-td auto-width>
                 <q-btn
@@ -84,7 +84,7 @@
                   icon="edit"
                   color="light-blue"
                 >
-                  <q-tooltip> Change settings </q-tooltip>
+                  <q-tooltip>Change settings</q-tooltip>
                 </q-btn>
               </q-td>
               <q-td auto-width>
@@ -99,7 +99,6 @@
               </q-td>
             </q-tr>
           </template>
-          {% endraw %}
         </q-table>
       </q-card-section>
     </q-card>
@@ -149,9 +148,8 @@
           color="primary"
           size="md"
           @click="copyText(settingsDialog.apiUrl, 'Link copied to clipboard!')"
-          >{% raw %}{{settingsDialog.apiUrl}}{% endraw %}<q-tooltip>
-            Click to Copy URL
-          </q-tooltip>
+          ><span v-text="settingsDialog.apiUrl"></span
+          ><q-tooltip> Click to Copy URL </q-tooltip>
         </q-btn>
       </center>
       <div class="text-subtitle2">
@@ -236,7 +234,7 @@
           dense
           emit-value
           v-model="formDialog.data.exchange"
-          :options="currencyOptions"
+          :options="currencies"
           label="Exchange rate"
         ></q-select>
 
@@ -344,8 +342,8 @@
 </div>
 {% endblock %} {% block scripts %} {{ window_vars(user) }}
 <script>
-  var mapGerty = function (obj) {
-    obj.date = Quasar.utils.date.formatDate(
+  const mapGerty = function (obj) {
+    obj.date = Quasar.date.formatDate(
       new Date(obj.time * 1000),
       'YYYY-MM-DD HH:mm'
     )
@@ -359,10 +357,10 @@
     return obj
   }
 
-  new Vue({
+  window.app = Vue.createApp({
     el: '#vue',
     mixins: [windowMixin],
-    data: function () {
+    data() {
       return {
         toggleStates: {
           fun: false,
@@ -374,180 +372,7 @@
         },
         oldToggleStates: {},
         gertys: [],
-        currencyOptions: [
-          'USD',
-          'EUR',
-          'GBP',
-          'AED',
-          'AFN',
-          'ALL',
-          'AMD',
-          'ANG',
-          'AOA',
-          'ARS',
-          'AUD',
-          'AWG',
-          'AZN',
-          'BAM',
-          'BBD',
-          'BDT',
-          'BGN',
-          'BHD',
-          'BIF',
-          'BMD',
-          'BND',
-          'BOB',
-          'BRL',
-          'BSD',
-          'BTN',
-          'BWP',
-          'BYN',
-          'BZD',
-          'CAD',
-          'CDF',
-          'CHF',
-          'CLF',
-          'CLP',
-          'CNH',
-          'CNY',
-          'COP',
-          'CRC',
-          'CUC',
-          'CUP',
-          'CVE',
-          'CZK',
-          'DJF',
-          'DKK',
-          'DOP',
-          'DZD',
-          'EGP',
-          'ERN',
-          'ETB',
-          'EUR',
-          'FJD',
-          'FKP',
-          'GBP',
-          'GEL',
-          'GGP',
-          'GHS',
-          'GIP',
-          'GMD',
-          'GNF',
-          'GTQ',
-          'GYD',
-          'HKD',
-          'HNL',
-          'HRK',
-          'HTG',
-          'HUF',
-          'IDR',
-          'ILS',
-          'IMP',
-          'INR',
-          'IQD',
-          'IRR',
-          'IRT',
-          'ISK',
-          'JEP',
-          'JMD',
-          'JOD',
-          'JPY',
-          'KES',
-          'KGS',
-          'KHR',
-          'KMF',
-          'KPW',
-          'KRW',
-          'KWD',
-          'KYD',
-          'KZT',
-          'LAK',
-          'LBP',
-          'LKR',
-          'LRD',
-          'LSL',
-          'LYD',
-          'MAD',
-          'MDL',
-          'MGA',
-          'MKD',
-          'MMK',
-          'MNT',
-          'MOP',
-          'MRO',
-          'MUR',
-          'MVR',
-          'MWK',
-          'MXN',
-          'MYR',
-          'MZN',
-          'NAD',
-          'NGN',
-          'NIO',
-          'NOK',
-          'NPR',
-          'NZD',
-          'OMR',
-          'PAB',
-          'PEN',
-          'PGK',
-          'PHP',
-          'PKR',
-          'PLN',
-          'PYG',
-          'QAR',
-          'RON',
-          'RSD',
-          'RUB',
-          'RWF',
-          'SAR',
-          'SBD',
-          'SCR',
-          'SDG',
-          'SEK',
-          'SGD',
-          'SHP',
-          'SLL',
-          'SOS',
-          'SRD',
-          'SSP',
-          'STD',
-          'SVC',
-          'SYP',
-          'SZL',
-          'THB',
-          'TJS',
-          'TMT',
-          'TND',
-          'TOP',
-          'TRY',
-          'TTD',
-          'TWD',
-          'TZS',
-          'UAH',
-          'UGX',
-          'USD',
-          'UYU',
-          'UZS',
-          'VEF',
-          'VES',
-          'VND',
-          'VUV',
-          'WST',
-          'XAF',
-          'XAG',
-          'XAU',
-          'XCD',
-          'XDR',
-          'XOF',
-          'XPD',
-          'XPF',
-          'XPT',
-          'YER',
-          'ZAR',
-          'ZMW',
-          'ZWL'
-        ],
+        currencies: [],
         gertysTable: {
           columns: [
             {name: 'name', align: 'left', label: 'Name', field: 'name'},
@@ -608,44 +433,39 @@
       }
     },
     methods: {
-      setAdvanced: function () {
-        self = this
-        self.formDialog.data.mempool_endpoint = 'https://mempool.space'
-        self.formDialog.data.refresh_time = 300
+      setAdvanced() {
+        this.formDialog.data.mempool_endpoint = 'https://mempool.space'
+        this.formDialog.data.refresh_time = 300
       },
-      setWallets: function () {
-        self = this
-        if (!self.formDialog.data.display_preferences.lnbits_wallets_balance) {
-          self.formDialog.data.lnbits_wallets = []
+      setWallets() {
+        if (!this.formDialog.data.display_preferences.lnbits_wallets_balance) {
+          this.formDialog.data.lnbits_wallets = []
         }
       },
-      setUrls: function () {
-        self = this
-        if (!self.formDialog.data.display_preferences.url_checker) {
-          self.formDialog.data.urls = []
+      setUrls() {
+        if (!this.formDialog.data.display_preferences.url_checker) {
+          this.formDialog.data.urls = []
         }
       },
-      setOnchain: function () {
-        self = this
-        self.formDialog.data.display_preferences.onchain_difficulty_epoch_progress =
-          self.toggleStates.onchain
-        self.formDialog.data.display_preferences.onchain_difficulty_retarget_date =
-          self.toggleStates.onchain
-        self.formDialog.data.display_preferences.onchain_difficulty_blocks_remaining =
-          !self.toggleStates.onchain
-        self.formDialog.data.display_preferences.onchain_difficulty_epoch_time_remaining =
-          self.toggleStates.onchain
-        self.formDialog.data.display_preferences.onchain_block_height =
-          self.toggleStates.onchain
+      setOnchain() {
+        this.formDialog.data.display_preferences.onchain_difficulty_epoch_progress =
+          this.toggleStates.onchain
+        this.formDialog.data.display_preferences.onchain_difficulty_retarget_date =
+          this.toggleStates.onchain
+        this.formDialog.data.display_preferences.onchain_difficulty_blocks_remaining =
+          !this.toggleStates.onchain
+        this.formDialog.data.display_preferences.onchain_difficulty_epoch_time_remaining =
+          this.toggleStates.onchain
+        this.formDialog.data.display_preferences.onchain_block_height =
+          this.toggleStates.onchain
       },
-      setMining: function () {
-        self = this
-        self.formDialog.data.display_preferences.mining_current_hash_rate =
-          self.toggleStates.mining
-        self.formDialog.data.display_preferences.mining_current_difficulty =
-          self.toggleStates.mining
+      setMining() {
+        this.formDialog.data.display_preferences.mining_current_hash_rate =
+          this.toggleStates.mining
+        this.formDialog.data.display_preferences.mining_current_difficulty =
+          this.toggleStates.mining
       },
-      closeFormDialog: function () {
+      closeFormDialog() {
         this.formDialog.data = {
           utc_offset: 0,
           lnbits_wallets: [],
@@ -655,25 +475,24 @@
           display_preferences: {}
         }
       },
-      getGertys: function () {
-        var self = this
+      getGertys() {
         LNbits.api
           .request(
             'GET',
             '/gerty/api/v1/gerty?all_wallets=true',
             this.g.user.wallets[0].inkey
           )
-          .then(function (response) {
-            self.gertys = response.data.map(function (obj) {
+          .then(response => {
+            this.gertys = response.data.map(function (obj) {
               return mapGerty(obj)
             })
           })
       },
-      openSettingsModal: function (apiUrl) {
+      openSettingsModal(apiUrl) {
         this.settingsDialog.apiUrl = apiUrl
         this.settingsDialog.show = true
       },
-      clearGertySettings: function () {
+      clearGertySettings() {
         this.formDialog.data.id = null
         this.formDialog.data.name = null
         this.formDialog.data.type = 'Gerty'
@@ -711,7 +530,7 @@
         }
         this.formDialog.show = true
       },
-      sendFormDataGerty: function () {
+      sendFormDataGerty() {
         if (this.formDialog.data.id) {
           this.updateGerty(
             this.g.user.wallets[0].adminkey,
@@ -724,7 +543,7 @@
           )
         }
       },
-      createGerty: function () {
+      createGerty() {
         if (
           this.formDialog.data.display_preferences.dashboard ||
           this.formDialog.data.display_preferences.dashboard_onchain ||
@@ -734,7 +553,7 @@
         ) {
           this.formDialog.data.type = 'Gerty'
         }
-        var data = {
+        const data = {
           name: this.formDialog.data.name,
           utc_offset: this.formDialog.data.utc_offset,
           type: this.formDialog.data.type,
@@ -747,7 +566,6 @@
             this.formDialog.data.display_preferences
           )
         }
-        var self = this
         LNbits.api
           .request(
             'POST',
@@ -755,16 +573,15 @@
             this.g.user.wallets[0].inkey,
             data
           )
-          .then(function (response) {
-            self.formDialog.show = false
-            self.gertys.push(mapGerty(response.data))
+          .then(response => {
+            this.formDialog.show = false
+            this.gertys.push(mapGerty(response.data))
           })
           .catch(function (error) {
             LNbits.utils.notifyApiError(error)
           })
       },
-      updateGerty: function (wallet, data) {
-        var self = this
+      updateGerty(wallet, data) {
         if (
           this.formDialog.data.display_preferences.dashboard ||
           this.formDialog.data.display_preferences.dashboard_onchain ||
@@ -784,32 +601,30 @@
         )
         LNbits.api
           .request('PUT', '/gerty/api/v1/gerty/' + data.id, wallet, data)
-          .then(function (response) {
-            self.gertys = _.reject(self.gertys, function (obj) {
+          .then(response => {
+            this.gertys = _.reject(this.gertys, function (obj) {
               return obj.id == data.id
             })
-            self.formDialog.show = false
-            self.gertys.push(mapGerty(response.data))
+            this.formDialog.show = false
+            this.gertys.push(mapGerty(response.data))
           })
           .catch(function (error) {
             LNbits.utils.notifyApiError(error)
           })
       },
-      deleteGerty: function (gertyId) {
-        var self = this
-
-        var gerty = _.findWhere(self.gertys, {id: gertyId})
+      deleteGerty(gertyId) {
+        const gerty = _.findWhere(this.gertys, {id: gertyId})
         LNbits.utils
           .confirmDialog('Are you sure you want to delete this Gerty?')
-          .onOk(function () {
+          .onOk(() => {
             LNbits.api
               .request(
                 'DELETE',
                 '/gerty/api/v1/gerty/' + gertyId,
-                _.findWhere(self.g.user.wallets, {id: gerty.wallet}).adminkey
+                _.findWhere(this.g.user.wallets, {id: gerty.wallet}).adminkey
               )
-              .then(function (response) {
-                self.gertys = _.reject(self.gertys, function (obj) {
+              .then(response => {
+                this.gertys = _.reject(this.gertys, function (obj) {
                   return obj.id == gertyId
                 })
               })
@@ -818,7 +633,7 @@
               })
           })
       },
-      exportCSV: function () {
+      exportCSV() {
         LNbits.utils.exportCSV(this.gertysTable.columns, this.gertys)
       }
     },
@@ -827,9 +642,10 @@
         return this.formDialog.data.type == 'Mini Gerty'
       }
     },
-    created: function () {
+    async created() {
       if (this.g.user.wallets.length) {
         this.getGertys()
+        this.currencies = await LNbits.utils.getCurrencies()
       }
     },
     watch: {

@@ -1,6 +1,5 @@
-{% extends "public.html" %} {% block toolbar_title %} Gerty: {% raw %}{{
-gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
-
+{% extends "public.html" %} {% block toolbar_title %} Gerty: {{ gertyname }}{%
+endblock %} {% block page %}
 <div
   class="q-pa-md row items-start q-gutter-md"
   v-if="fun_exchange_market_rate || fun_satoshi_quotes"
@@ -12,10 +11,8 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
     style="background: none !important"
   >
     <q-card-section class="text-h1 q-pa-none">
-      <small> <b>{{fun_exchange_market_rate["amount"]}}</b></small>
-      <small class="text-h4"
-        >{{fun_exchange_market_rate["unit"].split(" ")[1]}}</small
-      >
+      <small> <b v-text="fun_exchange_market_rate['amount']"></b></small>
+      <small class="text-h4" v-text="fun_exchange_market_rate['unit']"></small>
     </q-card-section>
   </q-card>
 
@@ -26,8 +23,8 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
     style="background: none !important"
   >
     <blockquote class="text-right" style="max-width: 900px">
-      <p>"{{fun_satoshi_quotes["quote"]}}"</p>
-      <small>~ Satoshi {{fun_satoshi_quotes["date"]}}</small>
+      <p v-text="fun_satoshi_quotes['quote']"></p>
+      <small>~ Satoshi <span v-text="fun_satoshi_quotes['date']"></span></small>
     </blockquote>
   </q-card>
 </div>
@@ -65,7 +62,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
     </q-card-section>
     <q-card-section class="q-pa-none">
       <p v-for="(item, t) in dashboard_onchain">
-        <b>{{item[0].value}}: </b>{{item[1].value}}
+        <b v-text="item[0].value"></b>: <span v-text="item[1].value"></span>
       </p>
     </q-card-section>
   </q-card>
@@ -76,7 +73,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
     </q-card-section>
     <q-card-section class="q-pa-none">
       <p v-for="(item, t) in dashboard_mining">
-        <b>{{item[0].value}}:</b> {{item[1].value}}
+        <b v-text="item[0].value"></b>: <span v-text="item[1].value"></span>
       </p>
     </q-card-section>
   </q-card>
@@ -92,7 +89,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
     </q-card-section>
     <q-card-section class="q-pa-none">
       <p v-for="(item, t) in lightning_dashboard">
-        <b>{{item[0].value}}:</b> {{item[1].value}}
+        <b v-text="item[0].value"></b>: <span v-text="item[1].value"></span>
       </p>
     </q-card-section>
   </q-card>
@@ -105,9 +102,11 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
         <div class="col-8">
           <small>
             <b style="word-wrap: break-word; max-width: 230px; display: block">
-              <a class="text-secondary" class="text-primary">
-                {{item[0].value}}
-              </a>
+              <a
+                class="text-secondary"
+                class="text-primary"
+                v-text="item[0].value"
+              ></a>
             </b>
           </small>
         </div>
@@ -120,7 +119,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
             text-color="white"
             icon="sentiment_satisfied"
           >
-            {{item[1].value}}
+            <span v-text="item[1].value"></span>
           </q-chip>
           <q-chip
             v-else-if="item[1].value >= 300"
@@ -130,7 +129,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
             text-color="white"
             icon="sentiment_dissatisfied"
           >
-            {{item[1].value}}
+            <span v-text="item[1].value"></span>
           </q-chip>
           <q-chip
             v-else
@@ -140,7 +139,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
             text-color="white"
             icon="sentiment_dissatisfied"
           >
-            {{item[1].value}}
+            <span v-text="item[1].value"></span>
           </q-chip>
         </div>
       </div>
@@ -148,14 +147,12 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
   </q-card>
 </div>
 
-{% endraw %} {% endblock %} {% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
-  Vue.component(VueQrcode.name, VueQrcode)
-
-  new Vue({
+  window.app = Vue.createApp({
     el: '#vue',
     mixins: [windowMixin],
-    data: function () {
+    data() {
       return {
         lnbits_wallets_balance: {},
         dashboard_onchain: {},
@@ -183,7 +180,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
       }
     },
     methods: {
-      getGertyInfo: async function () {
+      getGertyInfo: async () => {
         for (let i = 0; i < 8; i++) {
           try {
             const {data} = await LNbits.api.request(
@@ -244,7 +241,7 @@ gertyname }}{% endraw %}{% endblock %}{% block page %} {% raw %}
         return this.gerty
       }
     },
-    created: async function () {
+    async created() => {
       await this.getGertyInfo()
     }
   })
