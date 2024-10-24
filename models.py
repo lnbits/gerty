@@ -1,4 +1,4 @@
-from sqlite3 import Row
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import Query
@@ -26,19 +26,13 @@ class Gerty(BaseModel):
     type: str
     utc_offset: int
     display_preferences: str
-    refresh_time: Optional[int]
-    wallet: Optional[str]
-    lnbits_wallets: Optional[str]
-    mempool_endpoint: Optional[str]
-    exchange: Optional[str]
-    urls: Optional[str]
-
-    @classmethod
-    def from_row(cls, row: Row) -> "Gerty":
-        return cls(**dict(row))
-
-
-#########MEMPOOL MODELS###########
+    refresh_time: Optional[int] = None
+    wallet: Optional[str] = None
+    lnbits_wallets: Optional[str] = None
+    mempool_endpoint: Optional[str] = None
+    exchange: Optional[str] = None
+    urls: Optional[str] = None
+    time: datetime = datetime.now(timezone.utc)
 
 
 class MempoolEndpoint(BaseModel):
@@ -56,4 +50,4 @@ class Mempool(BaseModel):
     mempool_endpoint: str = Query(None)
     endpoint: str = Query(None)
     data: str = Query(None)
-    time: int = Query(None)
+    time: datetime = datetime.now(timezone.utc)
