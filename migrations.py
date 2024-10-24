@@ -16,9 +16,9 @@ async def m001_initial(db):
             mempool_endpoint TEXT,
             exchange TEXT,
             display_preferences TEXT,
-            time TIMESTAMP DEFAULT {db.timestamp_now}"
+            time TIMESTAMP DEFAULT {db.timestamp_now}
         );
-    """
+        """
     )
 
 
