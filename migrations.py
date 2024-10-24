@@ -70,5 +70,5 @@ async def m006_add_gerty_model_col(db):
 async def m007_add_gerty_timestamp(db):
     await db.execute(
         "ALTER TABLE gerty.gertys "
-        f"ADD COLUMN time TIMESTAMP NOT NULL DEFAULT {db.timestamp_now}"
+        f"ADD COLUMN time TIMESTAMP DEFAULT {db.timestamp_now}"
     )
