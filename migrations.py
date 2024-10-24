@@ -6,7 +6,7 @@ async def m001_initial(db):
     Initial Gertys table.
     """
     await db.execute(
-        """
+        f"""
         CREATE TABLE gerty.gertys (
             id TEXT PRIMARY KEY,
             wallet TEXT NOT NULL,
@@ -15,7 +15,8 @@ async def m001_initial(db):
             lnbits_wallets TEXT,
             mempool_endpoint TEXT,
             exchange TEXT,
-            display_preferences TEXT
+            display_preferences TEXT,
+            time TIMESTAMP DEFAULT {db.timestamp_now}"
         );
     """
     )
@@ -43,15 +44,15 @@ async def m004_initial(db):
     Initial Gertys table.
     """
     await db.execute(
-        """
+        f"""
         CREATE TABLE gerty.mempool (
             id TEXT PRIMARY KEY,
             mempool_endpoint TEXT NOT NULL,
             endpoint TEXT NOT NULL,
             data TEXT NOT NULL,
-            time TIMESTAMP NOT NULL
+            time TIMESTAMP DEFAULT {db.timestamp_now}"
         );
-    """
+        """
     )
 
 
@@ -65,10 +66,3 @@ async def m005_add_gerty_model_col(db):
 async def m006_add_gerty_model_col(db):
     # removed this wrong migration, it was a mistake
     pass
-
-
-async def m007_add_gerty_timestamp(db):
-    await db.execute(
-        "ALTER TABLE gerty.gertys "
-        f"ADD COLUMN time TIMESTAMP DEFAULT {db.timestamp_now}"
-    )
