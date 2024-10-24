@@ -50,7 +50,7 @@ async def m004_initial(db):
             mempool_endpoint TEXT NOT NULL,
             endpoint TEXT NOT NULL,
             data TEXT NOT NULL,
-            time TIMESTAMP DEFAULT {db.timestamp_now}"
+            time TIMESTAMP DEFAULT {db.timestamp_now}
         );
         """
     )
