@@ -47,9 +47,7 @@ async def api_link_create(
     if not data.wallet:
         data.wallet = key_info.wallet.id
     if data.wallet != key_info.wallet.id:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet."
-        )
+        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
     return await create_gerty(data)
 
 
