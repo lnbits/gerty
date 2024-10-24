@@ -512,7 +512,6 @@
       },
       updateformDialog: async function (formId = null) {
         this.clearGertySettings()
-        console.log('formId', formId)
         if (formId) {
           let gerty = await _.findWhere(this.gertys, {id: formId})
           this.formDialog.data.id = gerty.id
@@ -570,7 +569,7 @@
           .request(
             'POST',
             '/gerty/api/v1/gerty',
-            this.g.user.wallets[0].inkey,
+            this.g.user.wallets[0].adminkey,
             data
           )
           .then(response => {
@@ -645,7 +644,7 @@
     async created() {
       if (this.g.user.wallets.length) {
         this.getGertys()
-        this.currencies = await LNbits.utils.getCurrencies()
+        this.currencies = await LNbits.api.getCurrencies()
       }
     },
     watch: {

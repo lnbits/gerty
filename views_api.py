@@ -1,12 +1,11 @@
 import json
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.decorators import require_admin_key, require_invoice_key
 from loguru import logger
-from starlette.exceptions import HTTPException
 
 from .crud import (
     create_gerty,
@@ -45,7 +44,13 @@ async def api_link_create(
     data: CreateGerty,
     key_info: WalletTypeInfo = Depends(require_admin_key),
 ) -> Gerty:
-    return await create_gerty(wallet_id=key_info.wallet.id, data=data)
+    if not data.wallet:
+        data.wallet = key_info.wallet.id
+    if data.wallet != key_info.wallet.id:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet."
+        )
+    return await create_gerty(data)
 
 
 @gerty_api_router.put("/api/v1/gerty/{gerty_id}", status_code=HTTPStatus.OK)

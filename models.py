@@ -26,12 +26,12 @@ class Gerty(BaseModel):
     type: str
     utc_offset: int
     display_preferences: str
-    refresh_time: Optional[int]
-    wallet: Optional[str]
-    lnbits_wallets: Optional[str]
-    mempool_endpoint: Optional[str]
-    exchange: Optional[str]
-    urls: Optional[str]
+    refresh_time: Optional[int] = None
+    wallet: Optional[str] = None
+    lnbits_wallets: Optional[str] = None
+    mempool_endpoint: Optional[str] = None
+    exchange: Optional[str] = None
+    urls: Optional[str] = None
     time: datetime = datetime.now(timezone.utc)
 
 

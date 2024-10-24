@@ -169,7 +169,7 @@ async def get_mining_dashboard(gerty):
 
         # difficulty_change
         text = []
-        difficulty_change = round(r["difficulty_change"], 2)
+        difficulty_change = round(r["difficultyChange"], 2)
         text.append(
             get_text_item_dict(
                 text="Estimated difficulty change",
@@ -399,7 +399,9 @@ async def api_get_mining_stat(stat_slug: str, gerty):
 async def get_satoshi():
     maxquotelength = 650
     with open(
-        os.path.join(settings.lnbits_path, "extensions/gerty/static/satoshi.json")
+        os.path.join(
+            settings.lnbits_extensions_path, "extensions/gerty/static/satoshi.json"
+        )
     ) as fd:
         satoshiquotes = json.load(fd)
     quote = satoshiquotes[random.randint(0, len(satoshiquotes) - 1)]

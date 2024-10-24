@@ -12,11 +12,10 @@ from .models import CreateGerty, Gerty, Mempool, MempoolEndpoint
 db = Database("ext_gerty")
 
 
-async def create_gerty(wallet_id: str, data: CreateGerty) -> Gerty:
+async def create_gerty(data: CreateGerty) -> Gerty:
     gerty_id = urlsafe_short_hash()
     gerty = Gerty(
         id=gerty_id,
-        wallet=wallet_id,
         **data.dict(),
     )
     await db.insert("gerty.gertys", gerty)
