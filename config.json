@@ -1,6 +1,10 @@
 {
+  "id": "gerty",
+  "version": "1.0.1",
   "name": "Gerty",
+  "repo": "https://github.com/lnbits/gerty",
   "short_description": "Desktop bitcoin Assistant",
+  "description": "",
   "tile": "/gerty/static/gerty.png",
   "min_lnbits_version": "1.0.0",
   "contributors": [
@@ -38,5 +42,9 @@
   ],
   "description_md": "https://raw.githubusercontent.com/lnbits/gerty/main/description.md",
   "terms_and_conditions_md": "https://raw.githubusercontent.com/lnbits/gerty/main/toc.md",
-  "license": "MIT"
+  "license": "MIT",
+  "paid_features": "",
+  "tags": ["Hardware", "Dashboard"],
+  "donate": "",
+  "hidden": false
 }

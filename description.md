@@ -1,7 +1,10 @@
-Your Desktop Bitcoin Assistant
+A desktop Bitcoin assistant that displays live data on screen or e-ink hardware.
 
-Gerty, a Bitcoin Assistant controlled from your LNbits wallet.
+Its functions include:
 
-This extension can be used as a standalone to display a dashboard of Bitcoin information or you can build / buy the Gerty hardware to display the information on an eink display.
+- Showing Bitcoin price and network statistics
+- Displaying wallet balances and transaction info
+- Supporting Gerty e-ink hardware displays
+- Customizing dashboard widgets and layouts
 
-Buy assembled from the LNbits shop https://shop.lnbits.com/product/gerty-a-bitcoin-assistant
+A delightful way for Bitcoin enthusiasts to keep track of prices, stats, and wallet activity at a glance, whether on screen or dedicated e-ink hardware.
