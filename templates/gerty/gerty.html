@@ -41,7 +41,62 @@ endblock %} {% block page %}
     class="q-pa-none q-pa-sm"
   >
     <q-card-section class="text-h1 q-pa-none">
-      <strong><small><span v-text="wallet.amount"></span></small></strong>&nbsp;<small class="text-h4" v-text="wallet.name"></small>
+      <strong
+        ><small><span v-text="wallet.amount"></span></small></strong
+      >&nbsp;<small class="text-h4" v-text="wallet.name"></small>
+    </q-card-section>
+  </q-card>
+</div>
+
+<div class="q-pa-md row items-start q-gutter-md" v-if="wallet_history.length">
+  <q-card
+    class="q-pa-sm wallet-history-card"
+    v-for="(wallet, index) in wallet_history"
+    :key="`${wallet.name}-${index}`"
+    unelevated
+  >
+    <q-card-section class="q-pa-none">
+      <div class="row items-center no-wrap q-mb-sm">
+        <div class="col">
+          <div class="text-h6" v-text="wallet.name"></div>
+          <div class="text-caption text-grey-7">Wallet history</div>
+        </div>
+        <div class="col-auto text-right">
+          <div class="text-caption text-positive">
+            +<span v-text="formatSats(wallet.incoming)"></span>
+          </div>
+          <div class="text-caption text-negative">
+            -<span v-text="formatSats(wallet.outgoing)"></span>
+          </div>
+        </div>
+      </div>
+      <div
+        class="wallet-history-bars"
+        :aria-label="`${wallet.name} wallet history equalizer`"
+      >
+        <div
+          class="wallet-history-bar"
+          v-for="bucket in wallet.buckets"
+          :key="bucket.key"
+          :title="bucket.title"
+        >
+          <div
+            class="wallet-history-bar-fill wallet-history-bar-fill--incoming"
+            :style="{height: `${bucket.inHeight}%`}"
+          ></div>
+          <div
+            class="wallet-history-bar-fill wallet-history-bar-fill--outgoing"
+            :style="{height: `${bucket.outHeight}%`}"
+          ></div>
+        </div>
+      </div>
+      <div class="row items-center q-mt-xs text-caption text-grey-7">
+        <div class="col">older</div>
+        <div class="col-auto">latest payments</div>
+      </div>
+      <div v-if="!wallet.hasActivity" class="text-caption text-grey-7 q-mt-sm">
+        No recent payments
+      </div>
     </q-card-section>
   </q-card>
 </div>
@@ -162,7 +217,7 @@ endblock %} {% block page %}
         dashboard_mining: {},
         lightning_dashboard: {},
         url_checker: {},
-        dashboard_mining: {},
+        wallet_history: [],
         gerty: [],
         gerty_id: '{{gerty}}',
         gertyname: '',
@@ -219,6 +274,12 @@ endblock %} {% block page %}
             this.lightning_dashboard = this.gerty[i].screen.areas
             this.gertyname = this.gerty[i].settings.name
           }
+          if (this.gerty[i].screen.group == 'wallet_history') {
+            this.wallet_history = this.gerty[i].screen.areas.map(wallet =>
+              this.buildWalletHistory(wallet)
+            )
+            this.gertyname = this.gerty[i].settings.name
+          }
           if (this.gerty[i].screen.group == 'fun_satoshi_quotes') {
             this.fun_satoshi_quotes['quote'] =
               this.gerty[i].screen.areas[0][0].value
@@ -238,6 +299,36 @@ endblock %} {% block page %}
         setTimeout(this.getGertyInfo, 20000)
         this.$forceUpdate()
         return this.gerty
+      },
+      buildWalletHistory(wallet) {
+        const buckets = wallet.buckets || []
+        const maxAmount = Math.max(
+          1,
+          ...buckets.map(bucket => Math.max(bucket.in, bucket.out))
+        )
+
+        return {
+          name: wallet.name,
+          incoming: wallet.incoming,
+          outgoing: wallet.outgoing,
+          hasActivity: Boolean(wallet.incoming || wallet.outgoing),
+          buckets: buckets.map((bucket, index) => ({
+            ...bucket,
+            key: index,
+            title: `${bucket.in ? `Received ${this.formatSats(bucket.in)} sats` : ''}${
+              bucket.in && bucket.out ? ' / ' : ''
+            }${bucket.out ? `Sent ${this.formatSats(bucket.out)} sats` : ''}`,
+            inHeight: bucket.in
+              ? Math.max(8, (bucket.in / maxAmount) * 100)
+              : 0,
+            outHeight: bucket.out
+              ? Math.max(8, (bucket.out / maxAmount) * 100)
+              : 0
+          }))
+        }
+      },
+      formatSats(amount) {
+        return new Intl.NumberFormat(LOCALE).format(Math.round(amount || 0))
       }
     },
     async created() {
@@ -245,4 +336,47 @@ endblock %} {% block page %}
     }
   })
 </script>
+{% endblock %} {% block styles %}
+<style>
+  .wallet-history-card {
+    min-width: 300px;
+    max-width: 440px;
+    width: 100%;
+  }
+
+  .wallet-history-bars {
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(24, minmax(4px, 1fr));
+    height: 120px;
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .wallet-history-bar {
+    align-items: flex-end;
+    display: flex;
+    gap: 1px;
+    height: 100%;
+    min-width: 4px;
+  }
+
+  .wallet-history-bar-fill {
+    border-radius: 2px 2px 0 0;
+    flex: 1;
+    min-height: 0;
+    transition: height 0.2s ease;
+  }
+
+  .wallet-history-bar-fill--incoming {
+    background: #21ba45;
+  }
+
+  .wallet-history-bar-fill--outgoing {
+    background: #c10015;
+  }
+</style>
 {% endblock %}

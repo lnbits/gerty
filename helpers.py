@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 import httpx
-from lnbits.core.crud import get_wallet_for_key
+from lnbits.core.crud import get_payments, get_wallet_for_key
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import satoshis_amount_as_fiat
 from loguru import logger
@@ -535,6 +535,9 @@ async def get_screen_data(screen_num: int, screens_list: list, gerty):
     elif screen_slug == "lightning_dashboard":
         title = "Lightning Network"
         areas = await get_lightning_stats(gerty)
+    elif screen_slug == "wallet_history":
+        title = "Wallet History"
+        areas = await get_wallet_history(gerty)
 
     data = {
         "title": title,
@@ -627,12 +630,51 @@ async def get_lnbits_wallet_balances(gerty):
             if wallet:
                 wallets.append(
                     {
+                        "id": wallet.id,
                         "name": wallet.name,
                         "balance": wallet.balance_msat / 1000,
                         "inkey": wallet.inkey,
                     }
                 )
     return wallets
+
+
+async def get_wallet_history(gerty):
+    wallets = await get_lnbits_wallet_balances(gerty)
+    histories = []
+
+    for wallet in wallets:
+        try:
+            payments = await get_payments(
+                wallet_id=wallet["id"],
+                complete=True,
+                limit=24,
+            )
+        except Exception:
+            logger.debug("Could not load wallet history for Gerty wallet.")
+            payments = []
+
+        buckets = [{"in": 0, "out": 0} for _ in range(24)]
+
+        for index, payment in enumerate(payments[:24]):
+            bucket = buckets[23 - index]
+            amount = payment.amount
+            sats = abs(amount) // 1000
+            if amount < 0:
+                bucket["out"] += sats
+            else:
+                bucket["in"] += sats
+
+        histories.append(
+            {
+                "name": wallet["name"],
+                "incoming": sum(bucket["in"] for bucket in buckets),
+                "outgoing": sum(bucket["out"] for bucket in buckets),
+                "buckets": buckets,
+            }
+        )
+
+    return histories
 
 
 async def get_placeholder_text(gerty):
