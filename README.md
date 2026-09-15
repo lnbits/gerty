@@ -32,6 +32,20 @@ What does Gerty show?
 - Create a new Gerty and configure your Gerty options
 - Click the smiley face icon next to your Gerty to open your Gerty dashboard.
 
+## Development
+
+Use Python 3.12, uv, and Node.js to install the development dependencies:
+
+```sh
+uv sync --locked --all-extras --dev
+npm ci
+make check
+make test
+```
+
+After changing Python dependencies in `pyproject.toml`, run `uv lock` and commit
+the updated `uv.lock` alongside it.
+
 ## Image display API
 
 Choose **Device type and screen resolution** in Gerty settings:
