@@ -1,25 +1,38 @@
+name: Release
+
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create github release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
         run: |
-          gh release create "$tag" --generate-notes
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --generate-notes
+          fi
 
   pullrequest:
     needs: [release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.EXT_GITHUB }}
           repository: lnbits/lnbits-extensions
@@ -31,28 +44,37 @@ jobs:
           git config --global user.email "alan@lnbits.com"
 
       - name: Create pull request in extensions repo
+        working-directory: lnbits-extensions
         env:
           GH_TOKEN: ${{ secrets.EXT_GITHUB }}
           repo_name: '${{ github.event.repository.name }}'
           tag: '${{ github.ref_name }}'
           branch: 'update-${{ github.event.repository.name }}-${{ github.ref_name }}'
           title: '[UPDATE] ${{ github.event.repository.name }} to ${{ github.ref_name }}'
-          body: 'https://github.com/lnbits/${{ github.event.repository.name }}/releases/${{ github.ref_name }}'
-          archive: 'https://github.com/lnbits/${{ github.event.repository.name }}/archive/refs/tags/${{ github.ref_name }}.zip'
+          body: '${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}'
         run: |
-          cd lnbits-extensions
-          git checkout -b $branch
+          git checkout -b "$branch"
 
-          # if there is another open PR
-          git pull origin $branch || echo "branch does not exist"
+          # Resume an existing update branch when rerunning a release.
+          remote_branch=$(git ls-remote --heads origin "$branch")
+          if [ -n "$remote_branch" ]; then
+            git fetch origin "$branch"
+            git checkout -B "$branch" FETCH_HEAD
+          fi
 
-          sh util.sh update_extension $repo_name $tag
+          sh util.sh update_extension "$repo_name" "$tag"
 
           git add -A
-          git commit -am "$title"
-          git push origin $branch
+          if ! git diff --cached --quiet; then
+            git commit -m "$title"
+            git push origin "$branch"
+          fi
 
-          # check if pr exists before creating it
-          gh config set pager cat
-          check=$(gh pr list -H $branch | wc -l)
-          test $check -ne 0 || gh pr create --title "$title" --body "$body" --repo lnbits/lnbits-extensions
+          # Only create a PR when the update differs from the default branch.
+          if git diff --quiet origin/HEAD HEAD; then
+            exit 0
+          fi
+          check=$(gh pr list --repo lnbits/lnbits-extensions --head "$branch" --state open --json number --jq 'length')
+          if [ "$check" -eq 0 ]; then
+            gh pr create --head "$branch" --title "$title" --body "$body" --repo lnbits/lnbits-extensions
+          fi
