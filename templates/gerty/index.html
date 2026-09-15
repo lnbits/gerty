@@ -174,11 +174,11 @@
           emit-value
           map-options
           v-model="formDialog.data.display_preferences._display.profile"
-          :options="[{label: 'Epaper 960 x 540', value: 'epaper_960x540'}, {label: 'Colour 480 x 320', value: 'colour_480x320'}]"
+          :options="[{label: 'Epaper 960 x 540', value: 'epaper_960x540'}, {label: 'Colour 480 x 320', value: 'colour_480x320'}, {label: 'Colour 480 x 272 (Guition JC4827W543)', value: 'colour_480x272'}, {label: 'Colour 240 x 240 (ESP32-C6 1.3 inch LCD)', value: 'colour_240x240'}]"
           label="Device type and screen resolution"
         ></q-select>
         <q-select
-          v-if="formDialog.data.display_preferences._display.profile === 'colour_480x320'"
+          v-if="formDialog.data.display_preferences._display.profile.startsWith('colour_')"
           filled
           dense
           v-model="formDialog.data.display_preferences._display.theme"

@@ -1,6 +1,18 @@
 """Display profiles and named palettes stored in Gerty preferences."""
 
 DISPLAY_PROFILES = {
+    "colour_240x240": {
+        "label": "Colour 240 x 240 (ESP32-C6 1.3 inch LCD)",
+        "width": 240,
+        "height": 240,
+        "mode": "RGB",
+    },
+    "colour_480x272": {
+        "label": "Colour 480 x 272 (Guition JC4827W543)",
+        "width": 480,
+        "height": 272,
+        "mode": "RGB",
+    },
     "epaper_960x540": {
         "label": "Epaper 960 x 540",
         "width": 960,

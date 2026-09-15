@@ -209,13 +209,15 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                     503, "Screen data temporarily unavailable."
                 ) from exc
             updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
-            if device_type == "colour_480x320":
+            if profile["mode"] == "RGB":
                 png = await asyncio.to_thread(
                     render_colour_screen,
                     data,
                     slug,
                     updated.strftime("%H:%M"),
                     colour_theme,
+                    height=profile["height"],
+                    width=profile["width"],
                 )
             elif slug == "block_explorer":
                 png = await asyncio.to_thread(
@@ -242,9 +244,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                 "device_type": device_type,
                 "width": profile["width"],
                 "height": profile["height"],
-                "colour_theme": (
-                    colour_theme if device_type == "colour_480x320" else None
-                ),
+                "colour_theme": (colour_theme if profile["mode"] == "RGB" else None),
             }
         ),
         media_type="application/json",

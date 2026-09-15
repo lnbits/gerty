@@ -38,6 +38,8 @@ Choose **Device type and screen resolution** in Gerty settings:
 
 - **Epaper 960 x 540** (default): 16-level grayscale PNG.
 - **Colour 480 x 320**: native RGB PNG layouts for the Guition JC3248W535.
+- **Colour 240 x 240**: native RGB PNG layouts for the ESP32-C6 1.3 inch LCD, with a compact Block explorer layout.
+- **Colour 480 x 272**: native RGB PNG layouts for the Guition JC4827W543.
 
 Colour displays offer **Cypherpunk**, **Bright day**, and **Orange Pill**.
 Their named colour-role dictionaries live in `display_settings.py`.
@@ -54,7 +56,7 @@ The selection is stored inside the existing JSON `display_preferences` field:
 }
 ```
 
-The page API returns `device_type` (`epaper_960x540` or `colour_480x320`),
+The page API returns `device_type` (`epaper_960x540`, `colour_480x320`, `colour_480x272`, or `colour_240x240`),
 `width`, `height`, and `colour_theme` (null for e-paper). Its `image_url` serves
 the selected device's image. Display settings do not count as enabled pages.
 Changing profile or theme invalidates the cached snapshot. Old preferences
