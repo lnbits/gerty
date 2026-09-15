@@ -1,7 +1,7 @@
 import json
 import time
 from datetime import datetime, timezone
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import httpx
 from lnbits.db import Database
@@ -35,7 +35,7 @@ async def get_gerty(gerty_id: str) -> Optional[Gerty]:
     )
 
 
-async def get_gertys(wallet_ids: Union[str, List[str]]) -> List[Gerty]:
+async def get_gertys(wallet_ids: Union[str, list[str]]) -> list[Gerty]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])

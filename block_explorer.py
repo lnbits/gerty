@@ -3,6 +3,7 @@
 import asyncio
 import math
 from datetime import datetime, timezone
+from importlib import import_module
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
@@ -12,18 +13,16 @@ from .rendering import BOLD_FONT, FONT, panel, stipple
 
 async def get_block_explorer_data():
     # Lazy imports let the other Gerty screens work on older LNbits versions.
-    from lnbits.core.services.blockexplorer import (
-        fetch_fee_estimates,
-        fetch_recent_blocks,
-        fetch_tip,
-    )
     from lnbits.settings import settings
 
-    if not settings.lnbits_blockexplorer_enabled:
+    if not getattr(settings, "lnbits_blockexplorer_enabled", False):
         raise ValueError("Enable Block explorer in LNbits settings.")
+    blockexplorer = import_module("lnbits.core.services.blockexplorer")
     tip, fees, blocks = await asyncio.wait_for(
         asyncio.gather(
-            fetch_tip(), fetch_fee_estimates(), fetch_recent_blocks(count=10)
+            blockexplorer.fetch_tip(),
+            blockexplorer.fetch_fee_estimates(),
+            blockexplorer.fetch_recent_blocks(count=10),
         ),
         timeout=30,
     )

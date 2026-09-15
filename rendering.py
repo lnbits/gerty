@@ -45,7 +45,7 @@ SCREEN_TITLES = {
 
 def stipple(draw, box):
     """Small ordered dots echo the reference's printed e-paper shading."""
-    left, top, right, bottom = [int(v) for v in box]
+    left, top, right, bottom = (int(v) for v in box)
     for y in range(top, bottom, 3):
         for x in range(left + (y % 2), right, 3):
             draw.point((x, y), fill=0)

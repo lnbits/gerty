@@ -8,11 +8,14 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from .asgi import asgi_transport
+
 
 def load_module(name):
     spec = importlib.util.spec_from_file_location(
         name, Path(__file__).parents[1] / f"{name}.py"
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -104,7 +107,7 @@ def test_manifest_and_image_routes(monkeypatch, refresh):
 
     async def check():
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+            transport=asgi_transport(app), base_url="http://test"
         ) as client:
             response = await client.get("/gerty/api/v1/gerty/pages/test")
             assert response.status_code == 200
@@ -160,7 +163,7 @@ def test_block_explorer_live_endpoint(monkeypatch):
 
     async def check():
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+            transport=asgi_transport(app), base_url="http://test"
         ) as client:
             response = await client.get("/gerty/api/v1/gerty/block-explorer")
             assert response.status_code == 200

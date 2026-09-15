@@ -1,5 +1,4 @@
 import math
-from typing import Tuple
 
 
 def si_classifier(val) -> dict:
@@ -28,7 +27,7 @@ def si_classifier(val) -> dict:
     return suffix
 
 
-def si_formatter(value) -> Tuple:
+def si_formatter(value) -> tuple:
     """
     Return a triple of scaled value, short suffix, long suffix, or None if
     the value cannot be classified.

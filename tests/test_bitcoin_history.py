@@ -14,6 +14,7 @@ from ..bitcoin_history import events_on, history_screen, load_events
 from ..colour_rendering import render_colour_screen
 from ..image_cache import ImageCache
 from ..rendering import render_screen
+from .asgi import asgi_transport
 
 
 def test_calendar_import_and_anniversaries():
@@ -82,7 +83,7 @@ def test_rotation(monkeypatch, has_event, enabled, requested, expected, next_pag
 
     async def check():
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+            transport=asgi_transport(app), base_url="http://test"
         ) as client:
             response = await client.get(f"/api/v1/gerty/pages/test/{requested}")
             assert response.status_code == 200

@@ -12,6 +12,7 @@ from .. import views_api
 from ..colour_rendering import render_colour_screen
 from ..display_settings import COLOUR_THEMES, get_display_settings
 from ..image_cache import ImageCache
+from .asgi import asgi_transport
 
 
 @pytest.mark.parametrize("theme", list(COLOUR_THEMES))
@@ -54,7 +55,9 @@ def test_native_colour_images(theme, slug, width, height):
     assert image.mode == "RGB"
     assert len(png) < 2 * 1024 * 1024
     assert len({image.getpixel((x, 0)) for x in range(width)}) == 1
-    r, g, b = image.getpixel((0, 0))
+    pixel = image.getpixel((0, 0))
+    assert isinstance(pixel, tuple) and len(pixel) == 3
+    r, g, b = pixel
     assert r != g or g != b
 
 
@@ -93,7 +96,7 @@ def test_api_image_matches_device_and_theme(monkeypatch, width, height):
 
     async def check():
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+            transport=asgi_transport(app), base_url="http://test"
         ) as client:
             manifest = (await client.get("/gerty/api/v1/gerty/pages/test")).json()
             assert manifest["device_type"] == f"colour_{width}x{height}"
