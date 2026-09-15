@@ -1,12 +1,17 @@
+import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from lnbits.core.crud import get_user
 from lnbits.core.models import WalletTypeInfo
 from lnbits.decorators import require_admin_key, require_invoice_key
-from loguru import logger
 
+from .bitcoin_history import events_on, history_screen
+from .block_explorer import get_block_explorer_data, render_block_explorer
+from .colour_rendering import render_colour_screen
 from .crud import (
     create_gerty,
     delete_gerty,
@@ -15,14 +20,16 @@ from .crud import (
     get_mempool_info,
     update_gerty,
 )
+from .display_settings import DISPLAY_PROFILES, get_display_settings
 from .helpers import (
     gerty_should_sleep,
-    get_next_update_time,
     get_satoshi,
     get_screen_data,
     get_screen_slug_by_index,
 )
+from .image_cache import image_cache
 from .models import CreateGerty, Gerty
+from .rendering import render_screen
 
 gerty_api_router = APIRouter()
 
@@ -101,54 +108,148 @@ async def api_gerty_satoshi():
     return await get_satoshi()
 
 
-@gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
-async def api_gerty_json(gerty_id: str, p: int = 0):  # page number
-    gerty = await get_gerty(gerty_id)
-
-    if not gerty:
+@gerty_api_router.get("/api/v1/gerty/block-explorer", name="gerty_block_explorer")
+async def api_gerty_block_explorer(
+    key_info: WalletTypeInfo = Depends(require_invoice_key),
+):
+    """Render current Block explorer data; devices use their Gerty page URL."""
+    try:
+        data = await get_block_explorer_data()
+    except Exception as exc:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist."
+            503, "Block explorer data temporarily unavailable."
+        ) from exc
+    png = await asyncio.to_thread(
+        render_block_explorer, data, datetime.now(timezone.utc).strftime("%H:%M")
+    )
+    return Response(
+        png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@gerty_api_router.get("/api/v1/gerty/images/{revision}.png", name="gerty_image")
+async def api_gerty_image(revision: str):
+    snapshot = image_cache.get(revision)
+    if snapshot is None:
+        raise HTTPException(410, "Image expired; fetch the page manifest again.")
+    return Response(
+        snapshot.png,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, no-store",
+            "ETag": f'"{revision}"',
+        },
+    )
+
+
+@gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}")
+@gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
+async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
+    gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    preferences = json.loads(gerty.display_preferences)
+    try:
+        device_type, colour_theme = get_display_settings(preferences)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    profile = DISPLAY_PROFILES[device_type]
+    screens = [
+        slug
+        for slug, enabled in preferences.items()
+        if slug != "_display" and enabled is True
+    ]
+    if not screens:
+        raise HTTPException(422, "Enable at least one screen.")
+    if p < 0 or p >= len(screens):
+        # Saved hardware page numbers can become stale after disabling screens.
+        # Continue the rotation at the first enabled page.
+        p = 0
+    utc_offset = gerty.utc_offset or 0
+    updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+    history_events = events_on(updated.date()) if "bitcoin_history" in screens else []
+    available = [
+        i
+        for i, screen in enumerate(screens)
+        if screen != "bitcoin_history" or history_events
+    ]
+    if not available:
+        raise HTTPException(
+            422,
+            "No screens available today. Enable another screen "
+            "for days without a history event.",
         )
-
-    display_preferences = json.loads(gerty.display_preferences)
-
-    enabled_screen_count = 0
-
-    enabled_screens = []
-
-    for screen_slug in display_preferences:
-        is_screen_enabled = display_preferences[screen_slug]
-        if is_screen_enabled:
-            enabled_screen_count += 1
-            enabled_screens.append(screen_slug)
-
-    logger.debug("Screens " + str(enabled_screens))
-    data = await get_screen_data(p, enabled_screens, gerty)
-
-    next_screen_number = 0 if ((p + 1) >= enabled_screen_count) else p + 1
-
-    # get the sleep time
-    sleep_time = gerty.refresh_time if gerty.refresh_time else 300
-    utc_offset = gerty.utc_offset if gerty.utc_offset else 0
+    p = next((i for i in available if i >= p), available[0])
+    next_page = next((i for i in available if i > p), available[0])
+    slug = get_screen_slug_by_index(p, screens)
+    refresh = gerty.refresh_time if gerty.refresh_time is not None else 300
+    if refresh <= 0:
+        raise HTTPException(422, "Refresh time must be a positive number of seconds.")
     if gerty_should_sleep(utc_offset):
-        sleep_time_hours = 8
-        sleep_time = 60 * 60 * sleep_time_hours
-
-    return {
-        "settings": {
-            "refreshTime": sleep_time,
-            "requestTimestamp": get_next_update_time(sleep_time, utc_offset),
-            "nextScreenNumber": next_screen_number,
-            "showTextBoundRect": False,
-            "name": gerty.name,
-        },
-        "screen": {
-            "slug": get_screen_slug_by_index(p, enabled_screens),
-            "group": get_screen_slug_by_index(p, enabled_screens),
-            "title": data["title"],
-            "areas": data["areas"],
-        },
-    }
+        refresh = 8 * 60 * 60
+    # Include configuration so edits invalidate snapshots immediately.
+    key = f"{gerty_id}:{p}:{device_type}:{colour_theme}:{updated.date()}:{gerty.json()}"
+    async with image_cache.lock:
+        snapshot = image_cache.fresh(key)
+        if snapshot is None:
+            try:
+                data = (
+                    history_screen(history_events, updated, refresh)
+                    if slug == "bitcoin_history"
+                    else (
+                        await get_block_explorer_data()
+                        if slug == "block_explorer"
+                        else await get_screen_data(p, screens, gerty)
+                    )
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    503, "Screen data temporarily unavailable."
+                ) from exc
+            updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+            if profile["mode"] == "RGB":
+                png = await asyncio.to_thread(
+                    render_colour_screen,
+                    data,
+                    slug,
+                    updated.strftime("%H:%M"),
+                    colour_theme,
+                    height=profile["height"],
+                    width=profile["width"],
+                )
+            elif slug == "block_explorer":
+                png = await asyncio.to_thread(
+                    render_block_explorer, data, updated.strftime("%H:%M")
+                )
+            else:
+                png = await asyncio.to_thread(
+                    render_screen, data, slug, updated.strftime("%H:%M")
+                )
+            snapshot = image_cache.put(key, png, refresh)
+    return Response(
+        content=json.dumps(
+            {
+                "schema_version": 1,
+                "image_url": str(
+                    request.url_for("gerty_image", revision=snapshot.revision)
+                ),
+                "image_revision": snapshot.revision,
+                "refresh_seconds": refresh,
+                "page": p,
+                "page_count": len(screens),
+                "next_page": next_page,
+                "screen_name": slug,
+                "device_type": device_type,
+                "width": profile["width"],
+                "height": profile["height"],
+                "colour_theme": (colour_theme if profile["mode"] == "RGB" else None),
+            }
+        ),
+        media_type="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 ###########CACHED MEMPOOL##############

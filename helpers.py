@@ -2,8 +2,7 @@ import json
 import os
 import random
 import textwrap
-from datetime import datetime, timedelta
-from typing import List
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from lnbits.core.crud import get_wallet_for_key
@@ -199,113 +198,43 @@ async def get_mining_dashboard(gerty):
 
 async def get_lightning_stats(gerty):
     data = await get_mempool_info("statistics", gerty)
+    latest = data["latest"]
+    previous = data.get("previous") or {}
     areas = []
-
-    text = []
-    text.append(
-        get_text_item_dict(text="Channel Count", font_size=12, gerty_type=gerty.type)
-    )
-    text.append(
-        get_text_item_dict(
-            text=format_number(data["latest"]["channel_count"]),
-            font_size=20,
-            gerty_type=gerty.type,
-        )
-    )
-    difference = get_percent_difference(
-        current=data["latest"]["channel_count"],
-        previous=data["previous"]["channel_count"],
-    )
-    text.append(
-        get_text_item_dict(
-            text=f"{difference} in last 7 days",
-            font_size=12,
-            gerty_type=gerty.type,
-        )
-    )
-    areas.append(text)
-
-    text = []
-    text.append(
-        get_text_item_dict(text="Number of Nodes", font_size=12, gerty_type=gerty.type)
-    )
-    text.append(
-        get_text_item_dict(
-            text=format_number(data["latest"]["node_count"]),
-            font_size=20,
-            gerty_type=gerty.type,
-        )
-    )
-    difference = get_percent_difference(
-        current=data["latest"]["node_count"], previous=data["previous"]["node_count"]
-    )
-    text.append(
-        get_text_item_dict(
-            text=f"{difference} in last 7 days",
-            font_size=12,
-            gerty_type=gerty.type,
-        )
-    )
-    areas.append(text)
-
-    text = []
-    text.append(
-        get_text_item_dict(text="Total Capacity", font_size=12, gerty_type=gerty.type)
-    )
-    avg_capacity = float(data["latest"]["total_capacity"]) / float(100000000)
-    text.append(
-        get_text_item_dict(
-            text=f"{format_number(avg_capacity, 2)} BTC",
-            font_size=20,
-            gerty_type=gerty.type,
-        )
-    )
-    difference = get_percent_difference(
-        current=data["latest"]["total_capacity"],
-        previous=data["previous"]["total_capacity"],
-    )
-    text.append(
-        get_text_item_dict(
-            text=f"{difference} in last 7 days",
-            font_size=12,
-            gerty_type=gerty.type,
-        )
-    )
-    areas.append(text)
-
-    text = []
-    text.append(
-        get_text_item_dict(
-            text="Average Channel Capacity", font_size=12, gerty_type=gerty.type
-        )
-    )
-    text.append(
-        get_text_item_dict(
-            text="{cap:} sats".format(
-                cap=format_number(data["latest"]["avg_capacity"])
-            ),
-            font_size=20,
-            gerty_type=gerty.type,
-        )
-    )
-    difference = get_percent_difference(
-        current=data["latest"]["avg_capacity"],
-        previous=data["previous"]["avg_capacity"],
-    )
-    text.append(
-        get_text_item_dict(
-            text=f"{difference} in last 7 days",
-            font_size=12,
-            gerty_type=gerty.type,
-        )
-    )
-    areas.append(text)
-
+    for field, label in (
+        ("channel_count", "Channel Count"),
+        ("node_count", "Number of Nodes"),
+        ("total_capacity", "Total Capacity"),
+        ("avg_capacity", "Average Channel Capacity"),
+    ):
+        current = latest[field]
+        if field == "total_capacity":
+            value = f"{format_number(current / 100000000, 2)} BTC"
+        elif field == "avg_capacity":
+            value = f"{format_number(current)} sats"
+        else:
+            value = format_number(current)
+        text = [
+            get_text_item_dict(label, 12, gerty_type=gerty.type),
+            get_text_item_dict(value, 20, gerty_type=gerty.type),
+        ]
+        # Some mempool deployments return only latest. Missing history (or a
+        # zero baseline) cannot support a meaningful percentage comparison.
+        baseline = previous.get(field)
+        if baseline is not None and baseline > 0:
+            difference = round((current - baseline) / baseline * 100, 3)
+            sign = "+" if difference > 0 else ""
+            text.append(
+                get_text_item_dict(
+                    f"{sign}{difference}% in last 7 days", 12, gerty_type=gerty.type
+                )
+            )
+        areas.append(text)
     return areas
 
 
 def get_next_update_time(sleep_time_seconds: int = 0, utc_offset: int = 0):
-    utc_now = datetime.now()
+    utc_now = datetime.now(timezone.utc)
     next_refresh_time = utc_now + timedelta(0, sleep_time_seconds)
     local_refresh_time = next_refresh_time + timedelta(hours=utc_offset)
     return "{next:} {time:}".format(
@@ -315,7 +244,7 @@ def get_next_update_time(sleep_time_seconds: int = 0, utc_offset: int = 0):
 
 
 def gerty_should_sleep(utc_offset: int = 0):
-    utc_now = datetime.now()
+    utc_now = datetime.now(timezone.utc)
     local_time = utc_now + timedelta(hours=utc_offset)
     hours = int(local_time.strftime("%H"))
     if hours >= 22 and hours <= 23:
@@ -415,8 +344,8 @@ async def get_satoshi():
 
 # Get a screen slug by its position in the screens_list
 def get_screen_slug_by_index(index: int, screens_list):
-    if index <= len(screens_list) - 1:
-        return list(screens_list)[index - 1]
+    if 0 <= index < len(screens_list):
+        return list(screens_list)[index]
     else:
         return None
 
@@ -425,7 +354,7 @@ def get_screen_slug_by_index(index: int, screens_list):
 async def get_screen_data(screen_num: int, screens_list: list, gerty):
     screen_slug = get_screen_slug_by_index(screen_num, screens_list)
     # first get the relevant slug from the display_preferences
-    areas: List = []
+    areas: list = []
     title = ""
 
     if screen_slug == "dashboard":

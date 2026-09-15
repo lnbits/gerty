@@ -7,4 +7,28 @@ on:
 
 jobs:
   lint:
-    uses: lnbits/lnbits/.github/workflows/lint.yml@dev
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [checkblack, checkruff, mypy, pyright, checkprettier]
+    name: ${{ matrix.target }} (3.12)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --dev
+      - uses: actions/setup-node@v4
+        if: matrix.target == 'pyright' || matrix.target == 'checkprettier'
+        with:
+          node-version: '24.x'
+          cache: npm
+      - name: Install npm dependencies
+        if: matrix.target == 'pyright' || matrix.target == 'checkprettier'
+        run: npm ci
+      - run: make ${{ matrix.target }}
