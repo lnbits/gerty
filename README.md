@@ -46,6 +46,17 @@ make test
 After changing Python dependencies in `pyproject.toml`, run `uv lock` and commit
 the updated `uv.lock` alongside it.
 
+## Releases
+
+Pushing a version tag such as `v1.0.2` runs the release workflow. It creates a
+GitHub release with generated release notes, then updates Gerty in
+`lnbits/lnbits-extensions` and opens a pull request there.
+
+Before releasing, configure the `EXT_GITHUB` repository Actions secret with a
+token that can read and write contents and create pull requests in
+`lnbits/lnbits-extensions`. The release itself uses the automatic `GITHUB_TOKEN`.
+The workflow can be rerun to resume an existing release and update pull request.
+
 ## Image display API
 
 Choose **Device type and screen resolution** in Gerty settings:
