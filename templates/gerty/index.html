@@ -125,7 +125,24 @@
       </q-card-section>
       <q-card-section class="q-pa-none">
         <q-separator></q-separator>
-        <q-list> {% include "gerty/_api_docs.html" %} </q-list>
+        <q-list>
+          <q-item
+            clickable
+            tag="a"
+            href="https://gerty-installer.lnbits.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <q-item-section avatar>
+              <q-icon name="memory"></q-icon>
+            </q-item-section>
+            <q-item-section>Gerty hardware installer</q-item-section>
+            <q-item-section side>
+              <q-icon name="open_in_new"></q-icon>
+            </q-item-section>
+          </q-item>
+          {% include "gerty/_api_docs.html" %}
+        </q-list>
       </q-card-section>
     </q-card>
   </div>
