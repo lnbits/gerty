@@ -153,6 +153,7 @@ balance). Inactive days carry the balance forward. LNbits supplies the balance h
 outgoing fees. Colour displays use rainbow equaliser bars with a fading
 reflection; e-paper uses a high-contrast grayscale version. Dates run along the
 X axis and balance is labelled on the Y axis.
+
 ### Gallery
 
 Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo

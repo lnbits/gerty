@@ -51,6 +51,8 @@ def validate_history_wallet(data):
         keys = json.loads(data.lnbits_wallets or "[]")
         if not isinstance(keys, list) or len(keys) > 1:
             raise HTTPException(422, "Wallet history supports one wallet invoice key.")
+
+
 @gerty_api_router.get("/api/v1/gallery/settings")
 async def api_gallery_settings(user: User = Depends(check_user_exists)):
     return await gallery_limits(user.id)

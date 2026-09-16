@@ -856,6 +856,9 @@
             type: 'warning',
             message:
               'Wallet history supports one wallet. Remove extra invoice keys.'
+          })
+          return
+        }
         if (this.galleryUploading) return
         if (
           this.formDialog.data.display_preferences.gallery &&
