@@ -141,7 +141,8 @@ becomes a page in the rotation, using the configured refresh time. Photos are ce
 selected display; e-paper displays use 16-level grayscale.
 
 Large photos are resized in the browser before upload: the longest side is at
-most 1024 pixels, with no upscaling, and each file is at most 1.5 MB. PNGs are
+most 1024 pixels, with no upscaling, and each file is at most 1.5 MB (or the
+LNbits Max Asset Size, if smaller). PNGs are
 preserved when they fit; otherwise photos are compressed as JPEGs. Only the
 resized copy is stored.
 
@@ -150,3 +151,9 @@ count limits (requires an LNbits version with `/api/v1/assets` support). Uploade
 remain private account assets, but rendered photos can be viewed by anyone with
 the Gerty display link. Deleting a photo from Gallery immediately deletes its stored copy from LNbits files.
 Deleting a Gerty does not delete its uploaded files.
+
+Gallery follows LNbits **Settings > Assets**. The upload counter includes all
+files in the account, not just Gallery photos. Super admins and users exempted
+by LNbits have no asset-count cap; the file-size limit still applies. Setting
+**Max Assets per User** to zero disables Gallery and its uploads for everyone,
+including super admins, and skips existing Gallery pages in the display rotation.

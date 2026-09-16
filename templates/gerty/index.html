@@ -207,17 +207,18 @@
           size="xs"
           v-model="formDialog.data.display_preferences.gallery"
           label="Gallery"
+          :disable="!gallerySettings.enabled"
         ></q-checkbox>
+        <div v-if="!gallerySettings.enabled" class="text-caption text-grey">
+          Gallery is unavailable. Enable uploads in LNbits Settings &gt; Assets.
+        </div>
         <div
-          v-if="formDialog.data.display_preferences.gallery"
+          v-if="gallerySettings.enabled && formDialog.data.display_preferences.gallery"
           class="gallery-panel"
         >
           <div class="row items-center justify-between q-mb-sm">
             <div class="text-subtitle2">Your photos</div>
-            <div
-              class="text-caption text-grey"
-              v-text="formDialog.data.display_preferences._gallery.length + ' / 100'"
-            ></div>
+            <div class="text-caption text-grey" v-text="galleryUsage"></div>
           </div>
           <div class="gallery-grid">
             <div
@@ -255,7 +256,7 @@
             label="Add photos"
             class="q-mt-sm"
             :model-value="null"
-            :disable="galleryUploading"
+            :disable="galleryUploading || !galleryCanUpload"
             :loading="galleryUploading"
             @update:model-value="uploadGalleryPhotos"
           >
@@ -264,7 +265,10 @@
             ></template>
           </q-file>
           <div class="text-caption text-grey q-mt-sm">
-            JPEG or PNG · Resized to 1024px and under 1.5 MB before upload.
+            JPEG or PNG · Resized to 1024px before upload.
+            <span
+              v-text="'Maximum upload: ' + (gallerySettings.upload_max_bytes / 1000000).toFixed(2) + ' MB.'"
+            ></span>
             Center-cropped to fill your screen.
           </div>
         </div>
@@ -501,6 +505,13 @@
         gertys: [],
         currencies: [],
         galleryUploading: false,
+        gallerySettings: {
+          enabled: false,
+          max_assets: 0,
+          asset_count: 0,
+          max_bytes: 0,
+          upload_max_bytes: 0
+        },
         gertysTable: {
           columns: [
             {name: 'name', align: 'left', label: 'Name', field: 'name'},
@@ -566,6 +577,16 @@
       }
     },
     methods: {
+      async loadGallerySettings() {
+        const response = await LNbits.api.request(
+          'GET',
+          '/gerty/api/v1/gallery/settings',
+          null
+        )
+        this.gallerySettings = response.data
+        if (!this.gallerySettings.enabled)
+          this.formDialog.data.display_preferences.gallery = false
+      },
       async removeGalleryPhoto(photo) {
         if (this.galleryUploading) return
         const photos = this.formDialog.data.display_preferences._gallery
@@ -574,6 +595,7 @@
           await LNbits.api.request('DELETE', '/api/v1/assets/' + photo, null)
           const index = photos.indexOf(photo)
           if (index !== -1) photos.splice(index, 1)
+          await this.loadGallerySettings()
         } catch (error) {
           LNbits.utils.notifyApiError(error)
         } finally {
@@ -581,7 +603,9 @@
         }
       },
       async resizeGalleryPhoto(file) {
-        const maxBytes = 1500000
+        const maxBytes = this.gallerySettings.upload_max_bytes
+        if (maxBytes <= 0)
+          throw new Error('Uploads are disabled by the LNbits file size limit.')
         let image
         try {
           image = await createImageBitmap(file, {
@@ -633,7 +657,7 @@
           }
           if (!blob || blob.size > maxBytes) {
             throw new Error(
-              'Could not compress this photo below 1.5 MB. Please choose another image.'
+              'Could not compress this photo below the LNbits upload limit. Please choose another image.'
             )
           }
           const name = file.name.replace(/\.[^.]+$/, '') || 'photo'
@@ -647,11 +671,13 @@
         const photos = this.formDialog.data.display_preferences._gallery
         this.galleryUploading = true
         try {
+          await this.loadGallerySettings()
           for (const file of files) {
-            if (photos.length >= 100) {
+            if (!this.galleryCanUpload) {
               this.$q.notify({
                 type: 'negative',
-                message: 'Gallery supports up to 100 photos.'
+                message:
+                  'Uploads are disabled or your LNbits asset limit has been reached.'
               })
               break
             }
@@ -659,12 +685,13 @@
             body.append('file', await this.resizeGalleryPhoto(file))
             const response = await LNbits.api.request(
               'POST',
-              '/api/v1/assets',
+              '/gerty/api/v1/gallery/photos',
               null,
               body,
               {headers: {'Content-Type': 'multipart/form-data'}}
             )
             photos.push(response.data.id)
+            await this.loadGallerySettings()
           }
         } catch (error) {
           if (error.response) {
@@ -794,6 +821,12 @@
             ...(this.formDialog.data.display_preferences._display || {})
           }
         }
+        try {
+          await this.loadGallerySettings()
+        } catch (error) {
+          this.gallerySettings.enabled = false
+          LNbits.utils.notifyApiError(error)
+        }
         this.formDialog.show = true
       },
       sendFormDataGerty() {
@@ -919,6 +952,20 @@
       }
     },
     computed: {
+      galleryCanUpload() {
+        return (
+          this.gallerySettings.enabled &&
+          this.gallerySettings.upload_max_bytes > 0 &&
+          (this.gallerySettings.max_assets === null ||
+            this.gallerySettings.asset_count < this.gallerySettings.max_assets)
+        )
+      },
+      galleryUsage() {
+        const {asset_count, max_assets} = this.gallerySettings
+        return max_assets === null
+          ? `${asset_count} files · Unlimited`
+          : `${asset_count} / ${max_assets} account files`
+      },
       galleryRatio() {
         return {
           epaper_960x540: 960 / 540,

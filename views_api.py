@@ -3,11 +3,11 @@ import json
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from lnbits.core.crud import get_user, get_wallet
-from lnbits.core.models import WalletTypeInfo
-from lnbits.decorators import require_admin_key, require_invoice_key
+from lnbits.core.models import User, WalletTypeInfo
+from lnbits.decorators import check_user_exists, require_admin_key, require_invoice_key
 
 from .bitcoin_history import events_on, history_screen
 from .block_explorer import get_block_explorer_data, render_block_explorer
@@ -21,7 +21,14 @@ from .crud import (
     update_gerty,
 )
 from .display_settings import DISPLAY_PROFILES, get_display_settings
-from .gallery import gallery_ids, get_gallery_asset, render_gallery, validate_gallery
+from .gallery import (
+    gallery_enabled,
+    gallery_ids,
+    gallery_limits,
+    get_gallery_asset,
+    render_gallery,
+    validate_gallery,
+)
 from .helpers import (
     gerty_should_sleep,
     get_satoshi,
@@ -32,6 +39,26 @@ from .models import CreateGerty, Gerty
 from .rendering import render_screen
 
 gerty_api_router = APIRouter()
+
+
+@gerty_api_router.get("/api/v1/gallery/settings")
+async def api_gallery_settings(user: User = Depends(check_user_exists)):
+    return await gallery_limits(user.id)
+
+
+@gerty_api_router.post("/api/v1/gallery/photos")
+async def api_gallery_upload(file: UploadFile, user: User = Depends(check_user_exists)):
+    from importlib import import_module
+
+    limits = await gallery_limits(user.id)
+    if not limits["enabled"]:
+        raise HTTPException(403, "Gallery is disabled in LNbits asset settings.")
+    try:
+        service = import_module("lnbits.core.services.assets")
+        asset = await service.create_user_asset(user.id, file, False)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"id": asset.id}
 
 
 @gerty_api_router.get("/api/v1/gerty", status_code=HTTPStatus.OK)
@@ -163,7 +190,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         for slug, enabled in preferences.items()
         if slug != "_display" and enabled is True
     ]
-    photo_ids = gallery_ids(preferences)
+    photo_ids = gallery_ids(preferences) if gallery_enabled() else []
     screens = [
         page
         for screen in screens

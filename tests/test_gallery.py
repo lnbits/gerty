@@ -33,7 +33,7 @@ def test_photo_fits_display(profile):
         assert set(image.tobytes()) <= set(range(0, 256, 17))
 
 
-@pytest.mark.parametrize("ids", [False, "photo", [1], [""], ["x"] * 101])
+@pytest.mark.parametrize("ids", [False, "photo", [1], [""]])
 def test_reject_invalid_gallery(ids):
     with pytest.raises(HTTPException):
         gallery.gallery_ids({"_gallery": ids})
@@ -75,6 +75,7 @@ def test_gallery_rotation(monkeypatch):
         seen.append(asset)
         return SimpleNamespace(data=photo_bytes())
 
+    monkeypatch.setattr(views_api, "gallery_enabled", lambda: True)
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
     monkeypatch.setattr(views_api, "get_wallet", get_wallet)
     monkeypatch.setattr(views_api, "get_gallery_asset", get_asset)
@@ -116,3 +117,84 @@ def test_gallery_crops_from_center(size):
         )
     )
     assert image.getextrema() == ((255, 255), (0, 0), (0, 0))
+
+
+@pytest.mark.parametrize(
+    "maximum,user,expected",
+    [(3, "user", 3), (3, "root", None), (3, "exempt", None), (0, "root", None)],
+)
+def test_account_asset_limits(monkeypatch, maximum, user, expected):
+    monkeypatch.setattr(
+        gallery,
+        "settings",
+        SimpleNamespace(
+            lnbits_max_assets_per_user=maximum,
+            lnbits_max_asset_size_mb=0.5,
+            is_super_user=lambda user_id: user_id == "root",
+            is_unlimited_assets_user=lambda user_id: user_id in {"root", "exempt"},
+        ),
+    )
+
+    async def count(user_id):
+        assert user_id == user
+        return 3
+
+    monkeypatch.setattr(
+        gallery, "import_module", lambda _: SimpleNamespace(get_user_assets_count=count)
+    )
+    limits = asyncio.run(gallery.gallery_limits(user))
+    assert limits["enabled"] == (maximum > 0)
+    assert limits["max_assets"] == expected
+    assert limits["asset_count"] == (3 if maximum else 0)
+    assert limits["upload_max_bytes"] == 524288
+    assert limits["max_bytes"] == 524288
+
+
+def test_no_fixed_gallery_count_cap():
+    ids = [str(index) for index in range(150)]
+    assert gallery.gallery_ids({"_gallery": ids}) == ids
+
+
+def test_gallery_disabled_rejects_enable(monkeypatch):
+    monkeypatch.setattr(gallery, "gallery_enabled", lambda: False)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(
+            gallery.validate_gallery({"gallery": True, "_gallery": ["photo"]}, "root")
+        )
+    assert error.value.status_code == 403
+
+
+def test_upload_uses_lnbits_storage_and_limits(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    import importlib
+
+    from starlette.datastructures import UploadFile
+
+    upload = UploadFile(filename="photo.png", file=BytesIO(photo_bytes()))
+    user = SimpleNamespace(id="root")
+    limits = AsyncMock(return_value={"enabled": False})
+    monkeypatch.setattr(views_api, "gallery_limits", limits)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(views_api.api_gallery_upload(upload, user))
+    assert error.value.status_code == 403
+
+    limits.return_value = {"enabled": True}
+    create = AsyncMock(return_value=SimpleNamespace(id="stored"))
+    real_import = importlib.import_module
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name, *args: (
+            SimpleNamespace(create_user_asset=create)
+            if name == "lnbits.core.services.assets"
+            else real_import(name, *args)
+        ),
+    )
+    assert asyncio.run(views_api.api_gallery_upload(upload, user)) == {"id": "stored"}
+    create.assert_awaited_once_with("root", upload, False)
+    create.side_effect = ValueError("File limit exceeded")
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(views_api.api_gallery_upload(upload, user))
+    assert error.value.status_code == 422
+    assert error.value.detail == "File limit exceeded"
