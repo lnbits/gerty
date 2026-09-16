@@ -14,13 +14,13 @@ DISPLAY_PROFILES = {
         "mode": "RGB",
     },
     "epaper_960x540": {
-        "label": "Epaper 960 x 540",
+        "label": "Epaper 960 x 540 (LilyGO T5-ePaper-S3)",
         "width": 960,
         "height": 540,
         "mode": "L",
     },
     "colour_480x320": {
-        "label": "Colour 480 x 320",
+        "label": "Colour 480 x 320 (Guition JC3248W535)",
         "width": 480,
         "height": 320,
         "mode": "RGB",

@@ -172,3 +172,60 @@ def test_block_explorer_live_endpoint(monkeypatch):
             assert image.size == (960, 540)
 
     asyncio.run(check())
+
+
+@pytest.mark.asyncio
+async def test_slow_render_does_not_block_other_devices(monkeypatch):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    import httpx
+    from fastapi import FastAPI
+
+    from .. import views_api
+
+    started = threading.Event()
+    release = threading.Event()
+
+    async def get_gerty(gerty_id):
+        return SimpleNamespace(
+            name=gerty_id,
+            display_preferences='{"dashboard":true}',
+            utc_offset=0,
+            refresh_time=300,
+            json=lambda: gerty_id,
+        )
+
+    async def get_data(_page, _screens, gerty):
+        return {"title": gerty.name, "areas": []}
+
+    def render(data, *_args):
+        if data["title"] == "slow":
+            started.set()
+            assert release.wait(5)
+        return data["title"].encode()
+
+    monkeypatch.setattr(views_api, "get_gerty", get_gerty)
+    monkeypatch.setattr(views_api, "get_screen_data", get_data)
+    monkeypatch.setattr(views_api, "render_screen", render)
+    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
+    monkeypatch.setattr(views_api, "image_cache", cache_module.ImageCache())
+    app = FastAPI()
+    app.include_router(views_api.gerty_api_router)
+    async with httpx.AsyncClient(
+        transport=asgi_transport(app), base_url="http://test"
+    ) as client:
+        assert (await client.get("/api/v1/gerty/pages/cached")).status_code == 200
+        slow = asyncio.create_task(client.get("/api/v1/gerty/pages/slow"))
+        try:
+            assert await asyncio.to_thread(started.wait, 2)
+            for device in ("cached", "other"):
+                response = await asyncio.wait_for(
+                    client.get(f"/api/v1/gerty/pages/{device}"), 1
+                )
+                assert response.status_code == 200
+            assert not slow.done()
+        finally:
+            release.set()
+            await slow
