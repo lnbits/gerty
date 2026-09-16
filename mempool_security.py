@@ -38,13 +38,10 @@ def public_ip(address):
         ip = ipaddress.ip_address(address)
     except ValueError as exc:
         raise HTTPException(422, "Invalid mempool IP address.") from exc
-    if (
-        not ip.is_global
-        or ip.is_multicast
-        or ip.is_reserved
-        or "%" in address
-    ):
-        raise HTTPException(422, "Mempool URLs must resolve only to public IP addresses.")
+    if not ip.is_global or ip.is_multicast or ip.is_reserved or "%" in address:
+        raise HTTPException(
+            422, "Mempool URLs must resolve only to public IP addresses."
+        )
     if isinstance(ip, ipaddress.IPv6Address):
         if ip.ipv4_mapped:
             public_ip(str(ip.ipv4_mapped))
@@ -61,7 +58,8 @@ async def resolve_endpoint(endpoint):
         try:
             records = await asyncio.wait_for(
                 asyncio.get_running_loop().getaddrinfo(
-                    url.host, url.port or (443 if url.scheme == "https" else 80),
+                    url.host,
+                    url.port or (443 if url.scheme == "https" else 80),
                     type=socket.SOCK_STREAM,
                 ),
                 timeout=5,
@@ -70,9 +68,13 @@ async def resolve_endpoint(endpoint):
             raise HTTPException(422, "Could not resolve the mempool hostname.") from exc
         addresses = [public_ip(record[4][0]) for record in records]
         if not addresses:
-            raise HTTPException(422, "Could not resolve the mempool hostname.")
+            raise HTTPException(
+                422, "Could not resolve the mempool hostname."
+            ) from None
         # Prefer IPv4 on hosts without IPv6 routing; every answer is checked above.
-        return sorted(set(addresses), key=lambda address: ipaddress.ip_address(address).version)[0]
+        return sorted(
+            set(addresses), key=lambda address: ipaddress.ip_address(address).version
+        )[0]
     return public_ip(url.host)
 
 
