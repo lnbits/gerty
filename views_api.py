@@ -30,8 +30,17 @@ from .helpers import (
 from .image_cache import image_cache
 from .models import CreateGerty, Gerty
 from .rendering import render_screen
+from .wallet_history import get_wallet_history_data, render_wallet_history
 
 gerty_api_router = APIRouter()
+
+
+def validate_history_wallet(data):
+    preferences = json.loads(data.display_preferences)
+    if preferences.get("wallet_history") is True:
+        keys = json.loads(data.lnbits_wallets or "[]")
+        if not isinstance(keys, list) or len(keys) > 1:
+            raise HTTPException(422, "Wallet history supports one wallet invoice key.")
 
 
 @gerty_api_router.get("/api/v1/gerty", status_code=HTTPStatus.OK)
@@ -55,6 +64,7 @@ async def api_link_create(
         data.wallet = key_info.wallet.id
     if data.wallet != key_info.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
+    validate_history_wallet(data)
     return await create_gerty(data)
 
 
@@ -77,6 +87,7 @@ async def api_link_update(
             detail="Come on, seriously, this isn't your Gerty!",
         )
 
+    validate_history_wallet(data)
     for key, value in data.dict().items():
         setattr(gerty, key, value)
 
@@ -199,9 +210,13 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                     history_screen(history_events, updated, refresh)
                     if slug == "bitcoin_history"
                     else (
-                        await get_block_explorer_data()
-                        if slug == "block_explorer"
-                        else await get_screen_data(p, screens, gerty)
+                        await get_wallet_history_data(gerty)
+                        if slug == "wallet_history"
+                        else (
+                            await get_block_explorer_data()
+                            if slug == "block_explorer"
+                            else await get_screen_data(p, screens, gerty)
+                        )
                     )
                 )
             except Exception as exc:
@@ -209,7 +224,16 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                     503, "Screen data temporarily unavailable."
                 ) from exc
             updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
-            if profile["mode"] == "RGB":
+            if slug == "wallet_history":
+                png = await asyncio.to_thread(
+                    render_wallet_history,
+                    data,
+                    updated.strftime("%H:%M"),
+                    width=profile["width"],
+                    height=profile["height"],
+                    mode=profile["mode"],
+                )
+            elif profile["mode"] == "RGB":
                 png = await asyncio.to_thread(
                     render_colour_screen,
                     data,

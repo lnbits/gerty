@@ -133,3 +133,12 @@ Unavailable fee estimates and missing interval history are shown explicitly.
 The normal page cache and refresh interval apply; no static example data is used.
 The standalone `GET /gerty/api/v1/gerty/block-explorer` also renders live data
 and requires an LNbits invoice/read key. Hardware should use the Gerty page URL.
+
+### Wallet history
+
+Enable **Wallet history** and add one wallet invoice key. The screen shows its
+daily closing balance in sats for the last 30 UTC days (today shows the latest
+balance). Inactive days carry the balance forward. LNbits supplies the balance history, including
+outgoing fees. Colour displays use rainbow equaliser bars with a fading
+reflection; e-paper uses a high-contrast grayscale version. Dates run along the
+X axis and balance is labelled on the Y axis.
