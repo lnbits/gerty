@@ -144,3 +144,27 @@ Unavailable fee estimates and missing interval history are shown explicitly.
 The normal page cache and refresh interval apply; no static example data is used.
 The standalone `GET /gerty/api/v1/gerty/block-explorer` also renders live data
 and requires an LNbits invoice/read key. Hardware should use the Gerty page URL.
+
+### Gallery
+
+Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo
+becomes a page in the rotation, using the configured refresh time. Photos are center-cropped to fill the
+selected display; e-paper displays use 16-level grayscale.
+
+Large photos are resized in the browser before upload: the longest side is at
+most 1024 pixels, with no upscaling, and each file is at most 1.5 MB (or the
+LNbits Max Asset Size, if smaller). PNGs are
+preserved when they fit; otherwise photos are compressed as JPEGs. Only the
+resized copy is stored.
+
+Uploads use LNbits account asset storage and its configured file size, type and
+count limits (requires an LNbits version with `/api/v1/assets` support). Uploaded photos
+remain private account assets, but rendered photos can be viewed by anyone with
+the Gerty display link. Deleting a photo from Gallery immediately deletes its stored copy from LNbits files.
+Deleting a Gerty does not delete its uploaded files.
+
+Gallery follows LNbits **Settings > Assets**. The upload counter includes all
+files in the account, not just Gallery photos. Super admins and users exempted
+by LNbits have no asset-count cap; the file-size limit still applies. Setting
+**Max Assets per User** to zero disables Gallery and its uploads for everyone,
+including super admins, and skips existing Gallery pages in the display rotation.
