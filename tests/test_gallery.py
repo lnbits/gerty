@@ -145,6 +145,7 @@ def test_account_asset_limits(monkeypatch, maximum, user, expected):
     limits = asyncio.run(gallery.gallery_limits(user))
     assert limits["enabled"] == (maximum > 0)
     assert limits["max_assets"] == expected
+    assert limits["instance_max_assets"] == maximum
     assert limits["asset_count"] == (3 if maximum else 0)
     assert limits["upload_max_bytes"] == 524288
     assert limits["max_bytes"] == 524288
@@ -165,18 +166,23 @@ def test_gallery_disabled_rejects_enable(monkeypatch):
 
 
 def test_upload_uses_lnbits_storage_and_limits(monkeypatch):
-    from unittest.mock import AsyncMock
-
     import importlib
+    from unittest.mock import AsyncMock, MagicMock
 
+    from fastapi import Request
+    from lnbits.core.models import User
     from starlette.datastructures import UploadFile
 
     upload = UploadFile(filename="photo.png", file=BytesIO(photo_bytes()))
-    user = SimpleNamespace(id="root")
+    user = MagicMock(spec=User)
+    user.id = "root"
+    request = MagicMock(spec=Request)
+    request.form.return_value.__aenter__ = AsyncMock(return_value={"file": upload})
+    request.form.return_value.__aexit__ = AsyncMock(return_value=False)
     limits = AsyncMock(return_value={"enabled": False})
     monkeypatch.setattr(views_api, "gallery_limits", limits)
     with pytest.raises(HTTPException) as error:
-        asyncio.run(views_api.api_gallery_upload(upload, user))
+        asyncio.run(views_api.api_gallery_upload(request, user))
     assert error.value.status_code == 403
 
     limits.return_value = {"enabled": True}
@@ -191,10 +197,10 @@ def test_upload_uses_lnbits_storage_and_limits(monkeypatch):
             else real_import(name, *args)
         ),
     )
-    assert asyncio.run(views_api.api_gallery_upload(upload, user)) == {"id": "stored"}
+    assert asyncio.run(views_api.api_gallery_upload(request, user)) == {"id": "stored"}
     create.assert_awaited_once_with("root", upload, False)
     create.side_effect = ValueError("File limit exceeded")
     with pytest.raises(HTTPException) as error:
-        asyncio.run(views_api.api_gallery_upload(upload, user))
+        asyncio.run(views_api.api_gallery_upload(request, user))
     assert error.value.status_code == 422
     assert error.value.detail == "File limit exceeded"

@@ -3,11 +3,12 @@ import json
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from lnbits.core.crud import get_user, get_wallet
 from lnbits.core.models import User, WalletTypeInfo
 from lnbits.decorators import check_user_exists, require_admin_key, require_invoice_key
+from starlette.datastructures import UploadFile
 
 from .bitcoin_history import events_on, history_screen
 from .block_explorer import get_block_explorer_data, render_block_explorer
@@ -47,17 +48,22 @@ async def api_gallery_settings(user: User = Depends(check_user_exists)):
 
 
 @gerty_api_router.post("/api/v1/gallery/photos")
-async def api_gallery_upload(file: UploadFile, user: User = Depends(check_user_exists)):
+async def api_gallery_upload(request: Request, user: User = Depends(check_user_exists)):
     from importlib import import_module
 
     limits = await gallery_limits(user.id)
     if not limits["enabled"]:
         raise HTTPException(403, "Gallery is disabled in LNbits asset settings.")
-    try:
-        service = import_module("lnbits.core.services.assets")
-        asset = await service.create_user_asset(user.id, file, False)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+    # Parse only on upload so older LNbits installs can still load the extension.
+    async with request.form() as form:
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "Select a photo to upload.")
+        try:
+            service = import_module("lnbits.core.services.assets")
+            asset = await service.create_user_asset(user.id, file, False)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     return {"id": asset.id}
 
 

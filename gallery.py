@@ -5,7 +5,7 @@ from io import BytesIO
 
 from fastapi import HTTPException
 from lnbits.settings import settings
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 
 
 def gallery_enabled():
@@ -15,7 +15,7 @@ def gallery_enabled():
 async def gallery_limits(user_id):
     max_assets = getattr(settings, "lnbits_max_assets_per_user", 0)
     max_bytes = int(getattr(settings, "lnbits_max_asset_size_mb", 0) * 1024 * 1024)
-    unlimited = settings.is_super_user(user_id) or getattr(
+    unlimited = getattr(settings, "is_super_user", lambda _: False)(user_id) or getattr(
         settings, "is_unlimited_assets_user", lambda _: False
     )(user_id)
     count = 0
@@ -30,6 +30,7 @@ async def gallery_limits(user_id):
     return {
         "enabled": gallery_enabled(),
         "max_assets": None if unlimited else max_assets,
+        "instance_max_assets": max_assets,
         "asset_count": count,
         "max_bytes": max_bytes,
         "upload_max_bytes": min(1500000, max_bytes),
@@ -80,7 +81,8 @@ def render_gallery(contents, profile):
         canvas = Image.new("RGB", photo.size, "black")
         canvas.paste(photo, (0, 0), photo)
     if profile["mode"] == "L":
-        canvas = canvas.convert("L").point([round(i / 17) * 17 for i in range(256)])
+        canvas = ImageEnhance.Brightness(canvas.convert("L")).enhance(1.2)
+        canvas = canvas.point([round(i / 17) * 17 for i in range(256)])
     output = BytesIO()
     canvas.save(output, format="PNG")
     return output.getvalue()
