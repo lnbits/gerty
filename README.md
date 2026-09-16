@@ -188,13 +188,15 @@ configurations keep their fixed UTC offset until a timezone is saved; scheduled
 sleep is disabled by default.
 
 During sleep, all device-specific data endpoints, including cached PNG URLs,
-return `application/json` with `sleep_mode: true`, `display_off`, `deep_sleep`,
-`device_type`, `timezone`, `sleep_time`, `wake_time`, `wake_at` (ISO 8601 with offset),
-`sleep_seconds`, and `refresh_seconds` (seconds until wake). Firmware must check
-the response content type before decoding an image: colour devices should keep
-the display off, and e-paper devices should deep-sleep for `sleep_seconds`, then
-request their page again. Awake page manifests include `sleep_mode: false`.
-The browser preview displays the wake time and resumes automatically.
+return `application/json` with only `schema_version`, `sleep_mode: true`,
+`sleep_seconds` (seconds until wake), and `wake_at` (ISO 8601 with offset).
+Firmware must check the response content type before decoding an image: all
+devices should enter deep sleep for `sleep_seconds`, then request their page
+again. Awake page manifests include `sleep_mode: false`.
+
+The browser preview ignores sleep schedules. It requests page manifests with
+`?preview=true`; their image URLs also include `?preview=true` so previews remain
+visible during sleep. Normal device requests continue to respect the schedule.
 
 The shared quote and block-explorer endpoints accept `?gerty_id=...` to apply a
 device's schedule. Account, configuration, and gallery management endpoints remain

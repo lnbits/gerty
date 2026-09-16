@@ -209,12 +209,12 @@ async def api_gerty_block_explorer(
 
 
 @gerty_api_router.get("/api/v1/gerty/images/{revision}.png", name="gerty_image")
-async def api_gerty_image(revision: str):
+async def api_gerty_image(revision: str, preview: bool = False):
     snapshot = image_cache.get(revision)
     if snapshot is None:
         raise HTTPException(410, "Image expired; fetch the page manifest again.")
     gerty = await get_gerty(snapshot.key.split(":", 1)[0])
-    if gerty and (sleep := sleep_data(gerty)):
+    if not preview and gerty and (sleep := sleep_data(gerty)):
         return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return Response(
         snapshot.png,
@@ -228,11 +228,13 @@ async def api_gerty_image(revision: str):
 
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}")
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
-async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
+async def api_gerty_json(
+    request: Request, gerty_id: str, p: int = 0, preview: bool = False
+):
     gerty = await get_gerty(gerty_id)
     if not gerty:
         raise HTTPException(404, "Gerty does not exist.")
-    if sleep := sleep_data(gerty):
+    if not preview and (sleep := sleep_data(gerty)):
         return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     preferences = json.loads(gerty.display_preferences)
     try:
@@ -346,7 +348,11 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                 "schema_version": 1,
                 "sleep_mode": False,
                 "image_url": str(
-                    request.url_for("gerty_image", revision=snapshot.revision)
+                    request.url_for(
+                        "gerty_image", revision=snapshot.revision
+                    ).include_query_params(preview="true")
+                    if preview
+                    else request.url_for("gerty_image", revision=snapshot.revision)
                 ),
                 "image_revision": snapshot.revision,
                 "refresh_seconds": refresh,

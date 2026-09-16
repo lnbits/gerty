@@ -6,8 +6,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .display_settings import get_display_settings
-
 
 def validate_schedule(preferences):
     schedule = preferences.get("_schedule", {})
@@ -64,17 +62,9 @@ def sleep_data(gerty, now=None):
     # Round-trip normalizes nonexistent spring-forward wall times.
     wake = wake.astimezone(timezone.utc).astimezone(local.tzinfo)
     seconds = max(1, math.ceil(wake.timestamp() - now.timestamp()))
-    profile, _ = get_display_settings(preferences)
     return {
         "schema_version": 1,
         "sleep_mode": True,
-        "device_type": profile,
-        "display_off": True,
-        "deep_sleep": profile.startswith("epaper_"),
-        "timezone": schedule.get("timezone", str(local.tzinfo)),
-        "sleep_time": start,
-        "wake_time": end,
         "wake_at": wake.isoformat(),
         "sleep_seconds": seconds,
-        "refresh_seconds": seconds,
     }

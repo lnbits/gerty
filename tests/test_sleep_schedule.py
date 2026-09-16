@@ -49,7 +49,8 @@ def test_overnight_and_dst(instant, seconds):
     else:
         assert data is not None
         assert data["sleep_seconds"] == seconds
-        assert data["deep_sleep"] is True
+        assert "deep_sleep" not in data
+        assert "display_off" not in data
 
 
 def test_daytime_disabled_and_fractional_timezone():
@@ -132,9 +133,36 @@ def test_all_device_routes_sleep_without_fetching(monkeypatch):
                 assert response.status_code == 200
                 data = response.json()
                 assert data["sleep_mode"] is True
-                assert data["display_off"] is True
-                assert data["deep_sleep"] is False
-                assert data["refresh_seconds"] == 25200
+                assert "display_off" not in data
+                assert "deep_sleep" not in data
+                assert data["sleep_seconds"] == 25200
+                assert set(data) == {
+                    "schema_version",
+                    "sleep_mode",
+                    "sleep_seconds",
+                    "wake_at",
+                }
                 assert response.headers["cache-control"] == "no-store"
+
+            async def preview_data(*args):
+                return {"title": "Preview", "areas": []}
+
+            gerty.refresh_time = 300
+            gerty.json = lambda: "sleep-preview-test"
+            monkeypatch.setattr(views_api, "get_screen_data", preview_data)
+            response = await client.get("/api/v1/gerty/pages/test/0?preview=true")
+            assert response.status_code == 200
+            manifest = response.json()
+            assert manifest["sleep_mode"] is False
+            assert manifest["refresh_seconds"] == 300
+            assert manifest["image_url"].endswith("?preview=true")
+            image = await client.get(manifest["image_url"])
+            assert image.headers["content-type"] == "image/png"
+            assert image.content.startswith(b"\x89PNG")
+            # A preview snapshot must still respect sleep on the device URL.
+            image = await client.get(manifest["image_url"].split("?")[0])
+            assert image.json()["sleep_mode"] is True
+            response = await client.get("/api/v1/gerty/pages/test/0?preview=false")
+            assert response.json()["sleep_mode"] is True
 
     asyncio.run(check())
