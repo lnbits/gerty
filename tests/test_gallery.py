@@ -54,10 +54,17 @@ def test_validate_owner_and_empty_gallery(monkeypatch):
     assert calls == [("owner", "private")]
 
 
-def test_gallery_rotation(monkeypatch):
+@pytest.mark.parametrize("with_other_screen", [False, True])
+def test_gallery_rotation(monkeypatch, with_other_screen):
     async def get_gerty(_):
         return SimpleNamespace(
-            display_preferences=json.dumps({"gallery": True, "_gallery": ["a", "b"]}),
+            display_preferences=json.dumps(
+                {
+                    "gallery": True,
+                    "_gallery": ["a", "b"],
+                    "dashboard": with_other_screen,
+                }
+            ),
             wallet="wallet",
             utc_offset=0,
             refresh_time=60,
@@ -69,6 +76,8 @@ def test_gallery_rotation(monkeypatch):
         return SimpleNamespace(user="owner")
 
     seen = []
+    choices = iter(["b", "a"])
+    monkeypatch.setattr(views_api.random, "choice", lambda ids: next(choices))
 
     async def get_asset(user, asset):
         assert user == "owner"
@@ -88,18 +97,24 @@ def test_gallery_rotation(monkeypatch):
         async with httpx.AsyncClient(
             transport=asgi_transport(app), base_url="http://test"
         ) as client:
-            for page, next_page in [(0, 1), (1, 0)]:
-                response = await client.get(f"/api/v1/gerty/pages/test/{page}")
+            for expected in ["b", "a"]:
+                response = await client.get("/api/v1/gerty/pages/test/0")
                 assert response.status_code == 200
                 manifest = response.json()
-                assert manifest["page_count"] == 2
+                assert manifest["page_count"] == (2 if with_other_screen else 1)
                 assert manifest["screen_name"] == "gallery"
-                assert manifest["next_page"] == next_page
+                assert manifest["next_page"] == (1 if with_other_screen else 0)
+                assert seen[-1] == expected
                 image = await client.get(manifest["image_url"])
                 Image.open(BytesIO(image.content)).verify()
+                again = await client.get("/api/v1/gerty/pages/test/0")
+                assert again.json()["image_revision"] == manifest["image_revision"]
+                assert seen.count(expected) == 1
+                for snapshot in views_api.image_cache.entries.values():
+                    snapshot.fresh_until = 0
 
     asyncio.run(check())
-    assert seen == ["a", "b"]
+    assert seen == ["b", "a"]
 
 
 @pytest.mark.parametrize("size", [(300, 100), (100, 300)])

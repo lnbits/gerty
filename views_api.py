@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
@@ -222,15 +223,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         if slug != "_display" and enabled is True
     ]
     photo_ids = gallery_ids(preferences) if gallery_enabled() else []
-    screens = [
-        page
-        for screen in screens
-        for page in (
-            [f"gallery:{asset_id}" for asset_id in photo_ids]
-            if screen == "gallery"
-            else [screen]
-        )
-    ]
+    screens = [screen for screen in screens if screen != "gallery" or photo_ids]
     if not screens:
         raise HTTPException(422, "Enable at least one screen.")
     if p < 0 or p >= len(screens):
@@ -266,11 +259,11 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
     if snapshot is None:
         try:
             photo = None
-            if slug.startswith("gallery:"):
+            if slug == "gallery":
                 wallet = await get_wallet(gerty.wallet) if gerty.wallet else None
                 if not wallet:
                     raise HTTPException(404, "Gallery wallet no longer exists.")
-                photo = await get_gallery_asset(wallet.user, slug.split(":", 1)[1])
+                photo = await get_gallery_asset(wallet.user, random.choice(photo_ids))
             data = (
                 {}
                 if photo
@@ -339,7 +332,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                 "page": p,
                 "page_count": len(screens),
                 "next_page": next_page,
-                "screen_name": "gallery" if slug.startswith("gallery:") else slug,
+                "screen_name": slug,
                 "device_type": device_type,
                 "width": profile["width"],
                 "height": profile["height"],
