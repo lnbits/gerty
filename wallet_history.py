@@ -157,7 +157,7 @@ def _draw_chart(image, draw, text, points, scale, mono, background, muted):
             box = (x1, min(start, end), x2, max(start, end))
             draw.rectangle(box, fill=colour)
             bars_draw.rectangle(box, fill=colour)
-    reflection_height = max(1, int(height * 0.07))
+    reflection_height = max(1, height - bottom - 25 * scale)
     reflection = bars.crop((left, top, right, bottom)).transpose(
         Image.Transpose.FLIP_TOP_BOTTOM
     )
@@ -170,7 +170,7 @@ def _draw_chart(image, draw, text, points, scale, mono, background, muted):
             fill=int(100 * (1 - row / reflection_height) ** 2),
         )
     image.paste(reflection, (left, bottom + 3 * scale), fade)
-    label_y = bottom + reflection_height + 6 * scale
+    label_y = bottom + 7 * scale
     for index in sorted({0, len(points) // 2, len(points) - 1}):
         if not points:
             break
