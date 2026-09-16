@@ -140,8 +140,13 @@ Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo
 becomes a page in the rotation, using the configured refresh time. Photos are center-cropped to fill the
 selected display; e-paper displays use 16-level grayscale.
 
+Large photos are resized in the browser before upload: the longest side is at
+most 1024 pixels, with no upscaling, and each file is at most 1.5 MB. PNGs are
+preserved when they fit; otherwise photos are compressed as JPEGs. Only the
+resized copy is stored.
+
 Uploads use LNbits account asset storage and its configured file size, type and
-count limits (requires an LNbits version with `/api/v1/assets` support). Originals
+count limits (requires an LNbits version with `/api/v1/assets` support). Uploaded photos
 remain private account assets, but rendered photos can be viewed by anyone with
-the Gerty display link. Deleting a photo from Gallery immediately deletes its original from LNbits files.
+the Gerty display link. Deleting a photo from Gallery immediately deletes its stored copy from LNbits files.
 Deleting a Gerty does not delete its uploaded files.
