@@ -3,10 +3,14 @@ import time
 from datetime import datetime, timezone
 from typing import Optional, Union
 
-import httpx
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
 
+from .mempool_security import (
+    fetch_mempool_json,
+    normalize_endpoint,
+    resolve_endpoint,
+)
 from .models import CreateGerty, Gerty, Mempool, MempoolEndpoint
 
 db = Database("ext_gerty")
@@ -54,35 +58,36 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
     for endpoint in endpoints:
         if end_point == endpoint[0]:
             url = endpoint[1]
+    endpoint_url = normalize_endpoint(gerty.mempool_endpoint)
+    # Validate old configurations too, before serving any cached response.
+    address = await resolve_endpoint(endpoint_url)
     mempool = await db.fetchone(
         """
         SELECT * FROM gerty.mempool
         WHERE endpoint = :endpoint AND mempool_endpoint = :mempool_endpoint
         """,
-        {"endpoint": end_point, "mempool_endpoint": gerty.mempool_endpoint},
+        {"endpoint": end_point, "mempool_endpoint": endpoint_url},
         Mempool,
     )
     if not mempool:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(gerty.mempool_endpoint + url)
-            mempool_id = urlsafe_short_hash()
-            mempool = Mempool(
-                id=mempool_id,
-                data=json.dumps(response.json()),
-                endpoint=end_point,
-                mempool_endpoint=gerty.mempool_endpoint,
-            )
-            await db.insert("gerty.mempool", mempool)
-            return response.json()
+        data = await fetch_mempool_json(endpoint_url, url, address)
+        mempool_id = urlsafe_short_hash()
+        mempool = Mempool(
+            id=mempool_id,
+            data=json.dumps(data),
+            endpoint=end_point,
+            mempool_endpoint=endpoint_url,
+        )
+        await db.insert("gerty.mempool", mempool)
+        return data
 
     if float(time.time()) - gerty.time.timestamp() > 20:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(gerty.mempool_endpoint + url)
-            mempool.data = json.dumps(response.json())
-            mempool.time = datetime.now(timezone.utc)
-            mempool.endpoint = end_point
-            mempool.mempool_endpoint = gerty.mempool_endpoint
-            await db.update("gerty.mempool", mempool)
-            return response.json()
+        data = await fetch_mempool_json(endpoint_url, url, address)
+        mempool.data = json.dumps(data)
+        mempool.time = datetime.now(timezone.utc)
+        mempool.endpoint = end_point
+        mempool.mempool_endpoint = endpoint_url
+        await db.update("gerty.mempool", mempool)
+        return data
 
     return json.loads(mempool.data)

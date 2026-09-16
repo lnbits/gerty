@@ -354,7 +354,7 @@
         ></q-toggle>
         <br />
         <q-input
-          v-if="toggleStates.advanced"
+          v-if="toggleStates.advanced && g.user.super_user"
           filled
           dense
           v-model.trim="formDialog.data.mempool_endpoint"
@@ -498,7 +498,6 @@
     },
     methods: {
       setAdvanced() {
-        this.formDialog.data.mempool_endpoint = 'https://mempool.space'
         this.formDialog.data.refresh_time = 300
       },
       setWallets() {

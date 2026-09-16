@@ -28,6 +28,7 @@ from .helpers import (
     get_screen_slug_by_index,
 )
 from .image_cache import image_cache
+from .mempool_security import validate_mempool_change
 from .models import CreateGerty, Gerty
 from .rendering import render_screen
 
@@ -55,6 +56,9 @@ async def api_link_create(
         data.wallet = key_info.wallet.id
     if data.wallet != key_info.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
+    data.mempool_endpoint = await validate_mempool_change(
+        data.mempool_endpoint, key_info.wallet.user
+    )
     return await create_gerty(data)
 
 
@@ -77,6 +81,9 @@ async def api_link_update(
             detail="Come on, seriously, this isn't your Gerty!",
         )
 
+    data.mempool_endpoint = await validate_mempool_change(
+        data.mempool_endpoint, key_info.wallet.user, gerty.mempool_endpoint
+    )
     for key, value in data.dict().items():
         setattr(gerty, key, value)
 
