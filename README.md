@@ -133,3 +133,15 @@ Unavailable fee estimates and missing interval history are shown explicitly.
 The normal page cache and refresh interval apply; no static example data is used.
 The standalone `GET /gerty/api/v1/gerty/block-explorer` also renders live data
 and requires an LNbits invoice/read key. Hardware should use the Gerty page URL.
+
+### Gallery
+
+Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo
+becomes a page in the rotation, using the configured refresh time. Photos are center-cropped to fill the
+selected display; e-paper displays use 16-level grayscale.
+
+Uploads use LNbits account asset storage and its configured file size, type and
+count limits (requires an LNbits version with `/api/v1/assets` support). Originals
+remain private account assets, but rendered photos can be viewed by anyone with
+the Gerty display link. Deleting a photo from Gallery immediately deletes its original from LNbits files.
+Deleting a Gerty does not delete its uploaded files.

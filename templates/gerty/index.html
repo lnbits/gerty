@@ -191,7 +191,7 @@
           emit-value
           map-options
           v-model="formDialog.data.display_preferences._display.profile"
-          :options="[{label: 'Epaper 960 x 540', value: 'epaper_960x540'}, {label: 'Colour 480 x 320', value: 'colour_480x320'}, {label: 'Colour 480 x 272 (Guition JC4827W543)', value: 'colour_480x272'}, {label: 'Colour 240 x 240 (ESP32-C6 1.3 inch LCD)', value: 'colour_240x240'}]"
+          :options="[{label: 'Epaper 960 x 540 (LilyGO T5-ePaper-S3)', value: 'epaper_960x540'}, {label: 'Colour 480 x 320 (Guition JC3248W535)', value: 'colour_480x320'}, {label: 'Colour 480 x 272 (Guition JC4827W543)', value: 'colour_480x272'}, {label: 'Colour 240 x 240 (ESP32-C6 1.3 inch LCD)', value: 'colour_240x240'}]"
           label="Device type and screen resolution"
         ></q-select>
         <q-select
@@ -202,6 +202,71 @@
           :options="['Arctic', 'Bright day', 'Cypherpunk', 'Forest', 'Midnight', 'Mint Day', 'Orange Pill', 'Paper', 'Sunset']"
           label="Colour theme"
         ></q-select>
+        <q-checkbox
+          class="q-pl-md"
+          size="xs"
+          v-model="formDialog.data.display_preferences.gallery"
+          label="Gallery"
+        ></q-checkbox>
+        <div
+          v-if="formDialog.data.display_preferences.gallery"
+          class="gallery-panel"
+        >
+          <div class="row items-center justify-between q-mb-sm">
+            <div class="text-subtitle2">Your photos</div>
+            <div
+              class="text-caption text-grey"
+              v-text="formDialog.data.display_preferences._gallery.length + ' / 100'"
+            ></div>
+          </div>
+          <div class="gallery-grid">
+            <div
+              v-for="photo in formDialog.data.display_preferences._gallery"
+              :key="photo"
+              class="gallery-photo"
+            >
+              <q-img
+                :src="'/api/v1/assets/' + photo + '/data'"
+                :ratio="galleryRatio"
+                fit="cover"
+                position="50% 50%"
+              ></q-img>
+              <q-btn
+                round
+                dense
+                unelevated
+                size="sm"
+                color="dark"
+                icon="delete_outline"
+                class="gallery-remove"
+                :disable="galleryUploading"
+                aria-label="Delete photo from Gallery and files"
+                @click="removeGalleryPhoto(photo)"
+              >
+                <q-tooltip>Delete from Gallery and files</q-tooltip>
+              </q-btn>
+            </div>
+          </div>
+          <q-file
+            outlined
+            dense
+            multiple
+            accept="image/jpeg,image/png"
+            label="Add photos"
+            class="q-mt-sm"
+            :model-value="null"
+            :disable="galleryUploading"
+            :loading="galleryUploading"
+            @update:model-value="uploadGalleryPhotos"
+          >
+            <template v-slot:prepend
+              ><q-icon name="add_photo_alternate"></q-icon
+            ></template>
+          </q-file>
+          <div class="text-caption text-grey q-mt-sm">
+            JPEG or PNG · Center-cropped to fill your screen.
+          </div>
+        </div>
         <q-checkbox
           class="q-pl-md"
           size="xs"
@@ -379,7 +444,7 @@
           <q-btn
             unelevated
             color="primary"
-            :disable="formDialog.data.name == null"
+            :disable="galleryUploading || formDialog.data.name == null"
             type="submit"
             class="q-mr-md"
             v-if="!formDialog.data.id"
@@ -389,7 +454,7 @@
             v-else
             unelevated
             color="primary"
-            :disable="formDialog.data.name == null"
+            :disable="galleryUploading || formDialog.data.name == null"
             type="submit"
             >Update Gerty
           </q-btn>
@@ -434,6 +499,7 @@
         oldToggleStates: {},
         gertys: [],
         currencies: [],
+        galleryUploading: false,
         gertysTable: {
           columns: [
             {name: 'name', align: 'left', label: 'Name', field: 'name'},
@@ -467,6 +533,8 @@
             utc_offset: new Date().getTimezoneOffset(),
             display_preferences: {
               _display: {profile: 'epaper_960x540', theme: 'Orange Pill'},
+              _gallery: [],
+              gallery: false,
               dashboard: false,
               fun_satoshi_quotes: false,
               bitcoin_history: false,
@@ -497,6 +565,50 @@
       }
     },
     methods: {
+      async removeGalleryPhoto(photo) {
+        if (this.galleryUploading) return
+        const photos = this.formDialog.data.display_preferences._gallery
+        this.galleryUploading = true
+        try {
+          await LNbits.api.request('DELETE', '/api/v1/assets/' + photo, null)
+          const index = photos.indexOf(photo)
+          if (index !== -1) photos.splice(index, 1)
+        } catch (error) {
+          LNbits.utils.notifyApiError(error)
+        } finally {
+          this.galleryUploading = false
+        }
+      },
+      async uploadGalleryPhotos(files) {
+        if (!files || this.galleryUploading) return
+        const photos = this.formDialog.data.display_preferences._gallery
+        this.galleryUploading = true
+        try {
+          for (const file of files) {
+            if (photos.length >= 100) {
+              this.$q.notify({
+                type: 'negative',
+                message: 'Gallery supports up to 100 photos.'
+              })
+              break
+            }
+            const body = new FormData()
+            body.append('file', file)
+            const response = await LNbits.api.request(
+              'POST',
+              '/api/v1/assets',
+              null,
+              body,
+              {headers: {'Content-Type': 'multipart/form-data'}}
+            )
+            photos.push(response.data.id)
+          }
+        } catch (error) {
+          LNbits.utils.notifyApiError(error)
+        } finally {
+          this.galleryUploading = false
+        }
+      },
       setAdvanced() {
         this.formDialog.data.mempool_endpoint = 'https://mempool.space'
         this.formDialog.data.refresh_time = 300
@@ -537,7 +649,9 @@
           mempool_endpoint: 'https://mempool.space',
           refresh_time: 300,
           display_preferences: {
-            _display: {profile: 'epaper_960x540', theme: 'Orange Pill'}
+            _display: {profile: 'epaper_960x540', theme: 'Orange Pill'},
+            _gallery: [],
+            gallery: false
           }
         }
       },
@@ -575,6 +689,7 @@
         )) {
           vm.formDialog.data.display_preferences[key] = false
         }
+        this.formDialog.data.display_preferences._gallery = []
         this.formDialog.data.display_preferences._display = {
           profile: 'epaper_960x540',
           theme: 'Orange Pill'
@@ -584,6 +699,7 @@
         this.clearGertySettings()
         if (formId) {
           let gerty = await _.findWhere(this.gertys, {id: formId})
+          this.formDialog.data.wallet = gerty.wallet
           this.formDialog.data.id = gerty.id
           this.formDialog.data.name = gerty.name
           this.formDialog.data.type = gerty.type
@@ -598,6 +714,8 @@
           )
           this.formDialog.data.display_preferences = {
             bitcoin_history: false,
+            gallery: false,
+            _gallery: [],
             ...this.formDialog.data.display_preferences
           }
           this.formDialog.data.display_preferences._display = {
@@ -609,9 +727,22 @@
         this.formDialog.show = true
       },
       sendFormDataGerty() {
+        if (this.galleryUploading) return
+        if (
+          this.formDialog.data.display_preferences.gallery &&
+          !this.formDialog.data.display_preferences._gallery.length
+        ) {
+          this.$q.notify({
+            type: 'negative',
+            message: 'Upload at least one Gallery photo.'
+          })
+          return
+        }
         if (this.formDialog.data.id) {
           this.updateGerty(
-            this.g.user.wallets[0].adminkey,
+            this.g.user.wallets.find(
+              wallet => wallet.id === this.formDialog.data.wallet
+            ).adminkey,
             this.formDialog.data
           )
         } else {
@@ -661,6 +792,7 @@
           })
       },
       updateGerty(wallet, data) {
+        data = {...data}
         if (
           this.formDialog.data.display_preferences.dashboard ||
           this.formDialog.data.display_preferences.dashboard_onchain ||
@@ -717,6 +849,14 @@
       }
     },
     computed: {
+      galleryRatio() {
+        return {
+          epaper_960x540: 960 / 540,
+          colour_480x320: 480 / 320,
+          colour_480x272: 480 / 272,
+          colour_240x240: 1
+        }[this.formDialog.data.display_preferences._display.profile]
+      },
       isMiniGerty() {
         return this.formDialog.data.type == 'Mini Gerty'
       }
@@ -747,6 +887,27 @@
 </script>
 {% endblock %} {% block styles %}
 <style>
+  .gallery-panel {
+    padding: 14px;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: 10px;
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .gallery-photo {
+    position: relative;
+    overflow: hidden;
+    border-radius: 7px;
+  }
+  .gallery-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+  }
+
   .col__display_preferences {
     border: 1px solid red;
   }

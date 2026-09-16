@@ -5,7 +5,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from lnbits.core.crud import get_user
+from lnbits.core.crud import get_user, get_wallet
 from lnbits.core.models import WalletTypeInfo
 from lnbits.decorators import require_admin_key, require_invoice_key
 
@@ -21,11 +21,11 @@ from .crud import (
     update_gerty,
 )
 from .display_settings import DISPLAY_PROFILES, get_display_settings
+from .gallery import gallery_ids, get_gallery_asset, render_gallery, validate_gallery
 from .helpers import (
     gerty_should_sleep,
     get_satoshi,
     get_screen_data,
-    get_screen_slug_by_index,
 )
 from .image_cache import image_cache
 from .models import CreateGerty, Gerty
@@ -55,6 +55,7 @@ async def api_link_create(
         data.wallet = key_info.wallet.id
     if data.wallet != key_info.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
+    await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
     return await create_gerty(data)
 
 
@@ -77,6 +78,7 @@ async def api_link_update(
             detail="Come on, seriously, this isn't your Gerty!",
         )
 
+    await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
     for key, value in data.dict().items():
         setattr(gerty, key, value)
 
@@ -161,6 +163,16 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         for slug, enabled in preferences.items()
         if slug != "_display" and enabled is True
     ]
+    photo_ids = gallery_ids(preferences)
+    screens = [
+        page
+        for screen in screens
+        for page in (
+            [f"gallery:{asset_id}" for asset_id in photo_ids]
+            if screen == "gallery"
+            else [screen]
+        )
+    ]
     if not screens:
         raise HTTPException(422, "Enable at least one screen.")
     if p < 0 or p >= len(screens):
@@ -183,7 +195,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         )
     p = next((i for i in available if i >= p), available[0])
     next_page = next((i for i in available if i > p), available[0])
-    slug = get_screen_slug_by_index(p, screens)
+    slug = screens[p]
     refresh = gerty.refresh_time if gerty.refresh_time is not None else 300
     if refresh <= 0:
         raise HTTPException(422, "Refresh time must be a positive number of seconds.")
@@ -195,21 +207,35 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         snapshot = image_cache.fresh(key)
         if snapshot is None:
             try:
+                photo = None
+                if slug.startswith("gallery:"):
+                    wallet = await get_wallet(gerty.wallet) if gerty.wallet else None
+                    if not wallet:
+                        raise HTTPException(404, "Gallery wallet no longer exists.")
+                    photo = await get_gallery_asset(wallet.user, slug.split(":", 1)[1])
                 data = (
-                    history_screen(history_events, updated, refresh)
-                    if slug == "bitcoin_history"
+                    {}
+                    if photo
                     else (
-                        await get_block_explorer_data()
-                        if slug == "block_explorer"
-                        else await get_screen_data(p, screens, gerty)
+                        history_screen(history_events, updated, refresh)
+                        if slug == "bitcoin_history"
+                        else (
+                            await get_block_explorer_data()
+                            if slug == "block_explorer"
+                            else await get_screen_data(p, screens, gerty)
+                        )
                     )
                 )
+            except HTTPException:
+                raise
             except Exception as exc:
                 raise HTTPException(
                     503, "Screen data temporarily unavailable."
                 ) from exc
             updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
-            if profile["mode"] == "RGB":
+            if photo:
+                png = await asyncio.to_thread(render_gallery, photo.data, profile)
+            elif profile["mode"] == "RGB":
                 png = await asyncio.to_thread(
                     render_colour_screen,
                     data,
@@ -240,7 +266,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                 "page": p,
                 "page_count": len(screens),
                 "next_page": next_page,
-                "screen_name": slug,
+                "screen_name": "gallery" if slug.startswith("gallery:") else slug,
                 "device_type": device_type,
                 "width": profile["width"],
                 "height": profile["height"],
