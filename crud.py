@@ -38,9 +38,14 @@ async def get_gerty(gerty_id: str) -> Optional[Gerty]:
 async def get_gertys(wallet_ids: Union[str, list[str]]) -> list[Gerty]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
-    q = ",".join([f"'{wallet_id}'" for wallet_id in wallet_ids])
+    if not wallet_ids:
+        return []
+    placeholders = ", ".join(f":w{i}" for i in range(len(wallet_ids)))
+    params = {f"w{i}": wallet_id for i, wallet_id in enumerate(wallet_ids)}
     return await db.fetchall(
-        f"SELECT * FROM gerty.gertys WHERE wallet IN ({q})", model=Gerty
+        f"SELECT * FROM gerty.gertys WHERE wallet IN ({placeholders})",
+        params,
+        model=Gerty,
     )
 
 
