@@ -76,7 +76,6 @@ def test_rotation(monkeypatch, has_event, enabled, requested, expected, next_pag
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
     monkeypatch.setattr(views_api, "events_on", events)
     monkeypatch.setattr(views_api, "get_screen_data", get_data)
-    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
     monkeypatch.setattr(views_api, "image_cache", ImageCache())
     app = FastAPI()
     app.include_router(views_api.gerty_api_router)

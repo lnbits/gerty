@@ -138,7 +138,6 @@ def test_history_manifest_and_data_failure(monkeypatch, profile):
 
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
     monkeypatch.setattr(views_api, "get_wallet_history_data", get_data)
-    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
     monkeypatch.setattr(views_api, "image_cache", ImageCache())
     app = FastAPI()
     app.include_router(views_api.gerty_api_router, prefix="/gerty")

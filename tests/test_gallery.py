@@ -89,7 +89,6 @@ def test_gallery_rotation(monkeypatch, with_other_screen):
     monkeypatch.setattr(views_api, "get_wallet", get_wallet)
     monkeypatch.setattr(views_api, "get_gallery_asset", get_asset)
     monkeypatch.setattr(views_api, "image_cache", ImageCache())
-    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
     app = FastAPI()
     app.include_router(views_api.gerty_api_router)
 

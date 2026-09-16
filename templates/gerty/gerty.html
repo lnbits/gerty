@@ -47,6 +47,21 @@
             'GET',
             `/gerty/api/v1/gerty/pages/{{gerty}}/${page}`
           )
+          if (data.sleep_mode) {
+            this.imageUrl = ''
+            this.pageCount = 1
+            this.error =
+              'Sleep mode — wakes at ' +
+              data.wake_time +
+              ' (' +
+              data.timezone +
+              ')'
+            this.timer = setTimeout(
+              () => this.loadPage(),
+              data.refresh_seconds * 1000
+            )
+            return
+          }
           this.imageUrl = data.image_url
           this.page = data.page
           this.pageCount = data.page_count

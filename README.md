@@ -178,3 +178,25 @@ files in the account, not just Gallery photos. Super admins and users exempted
 by LNbits have no asset-count cap; the file-size limit still applies. Setting
 **Max Assets per User** to zero disables Gallery and its uploads for everyone,
 including super admins, and skips existing Gallery pages in the display rotation.
+
+### Sleep schedule and timezone
+
+Select a timezone in the device settings. Enable **Enable Sleep Time** to reveal
+**Sleep time** and **Wake time**. The schedule runs daily in that timezone and
+follows daylight-saving changes. Sleep and wake times must differ. Existing
+configurations keep their fixed UTC offset until a timezone is saved; scheduled
+sleep is disabled by default.
+
+During sleep, all device-specific data endpoints, including cached PNG URLs,
+return `application/json` with `sleep_mode: true`, `display_off`, `deep_sleep`,
+`device_type`, `timezone`, `sleep_time`, `wake_time`, `wake_at` (ISO 8601 with offset),
+`sleep_seconds`, and `refresh_seconds` (seconds until wake). Firmware must check
+the response content type before decoding an image: colour devices should keep
+the display off, and e-paper devices should deep-sleep for `sleep_seconds`, then
+request their page again. Awake page manifests include `sleep_mode: false`.
+The browser preview displays the wake time and resumes automatically.
+
+The shared quote and block-explorer endpoints accept `?gerty_id=...` to apply a
+device's schedule. Account, configuration, and gallery management endpoints remain
+available during sleep. Schedule settings are stored in `display_preferences`
+as `_schedule`, with `timezone` (IANA name), `enabled`, `sleep_time`, and `wake_time`.
