@@ -99,7 +99,6 @@ def test_manifest_and_image_routes(monkeypatch, refresh):
         return {"title": "Device name", "areas": []}
 
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
-    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
     monkeypatch.setattr(views_api, "get_screen_data", get_data)
     monkeypatch.setattr(views_api, "image_cache", cache_module.ImageCache())
     app = FastAPI()
@@ -209,7 +208,6 @@ async def test_slow_render_does_not_block_other_devices(monkeypatch):
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
     monkeypatch.setattr(views_api, "get_screen_data", get_data)
     monkeypatch.setattr(views_api, "render_screen", render)
-    monkeypatch.setattr(views_api, "gerty_should_sleep", lambda _: False)
     monkeypatch.setattr(views_api, "image_cache", cache_module.ImageCache())
     app = FastAPI()
     app.include_router(views_api.gerty_api_router)

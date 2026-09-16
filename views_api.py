@@ -1,11 +1,11 @@
 import asyncio
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from lnbits.core.crud import get_user, get_wallet
 from lnbits.core.models import User, WalletTypeInfo
 from lnbits.decorators import check_user_exists, require_admin_key, require_invoice_key
@@ -33,7 +33,6 @@ from .gallery import (
     validate_gallery_image,
 )
 from .helpers import (
-    gerty_should_sleep,
     get_satoshi,
     get_screen_data,
 )
@@ -41,13 +40,27 @@ from .image_cache import image_cache
 from .mempool_security import validate_mempool_change
 from .models import CreateGerty, Gerty
 from .rendering import render_screen
+from .sleep_schedule import local_time, sleep_data, validate_schedule
 from .wallet_history import get_wallet_history_data, render_wallet_history
 
 gerty_api_router = APIRouter()
 
 
+async def device_sleep_response(gerty_id):
+    gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
+    return None
+
+
 def validate_history_wallet(data):
     preferences = json.loads(data.display_preferences)
+    try:
+        validate_schedule(preferences)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     if preferences.get("wallet_history") is True:
         keys = json.loads(data.lnbits_wallets or "[]")
         if not isinstance(keys, list) or len(keys) > 1:
@@ -165,15 +178,20 @@ async def api_gerty_delete(
 
 
 @gerty_api_router.get("/api/v1/gerty/satoshiquote", status_code=HTTPStatus.OK)
-async def api_gerty_satoshi():
+async def api_gerty_satoshi(gerty_id: str = ""):
+    if gerty_id and (sleep := await device_sleep_response(gerty_id)):
+        return sleep
     return await get_satoshi()
 
 
 @gerty_api_router.get("/api/v1/gerty/block-explorer", name="gerty_block_explorer")
 async def api_gerty_block_explorer(
+    gerty_id: str = "",
     key_info: WalletTypeInfo = Depends(require_invoice_key),
 ):
     """Render current Block explorer data; devices use their Gerty page URL."""
+    if gerty_id and (sleep := await device_sleep_response(gerty_id)):
+        return sleep
     try:
         data = await get_block_explorer_data()
     except Exception as exc:
@@ -191,10 +209,13 @@ async def api_gerty_block_explorer(
 
 
 @gerty_api_router.get("/api/v1/gerty/images/{revision}.png", name="gerty_image")
-async def api_gerty_image(revision: str):
+async def api_gerty_image(revision: str, preview: bool = False):
     snapshot = image_cache.get(revision)
     if snapshot is None:
         raise HTTPException(410, "Image expired; fetch the page manifest again.")
+    gerty = await get_gerty(snapshot.key.split(":", 1)[0])
+    if not preview and gerty and (sleep := sleep_data(gerty)):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return Response(
         snapshot.png,
         media_type="image/png",
@@ -207,10 +228,14 @@ async def api_gerty_image(revision: str):
 
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}")
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
-async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
+async def api_gerty_json(
+    request: Request, gerty_id: str, p: int = 0, preview: bool = False
+):
     gerty = await get_gerty(gerty_id)
     if not gerty:
         raise HTTPException(404, "Gerty does not exist.")
+    if not preview and (sleep := sleep_data(gerty)):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     preferences = json.loads(gerty.display_preferences)
     try:
         device_type, colour_theme = get_display_settings(preferences)
@@ -230,8 +255,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         # Saved hardware page numbers can become stale after disabling screens.
         # Continue the rotation at the first enabled page.
         p = 0
-    utc_offset = gerty.utc_offset or 0
-    updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+    updated = local_time(gerty, datetime.now(timezone.utc))
     history_events = events_on(updated.date()) if "bitcoin_history" in screens else []
     available = [
         i
@@ -250,8 +274,6 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
     refresh = gerty.refresh_time if gerty.refresh_time is not None else 300
     if refresh <= 0:
         raise HTTPException(422, "Refresh time must be a positive number of seconds.")
-    if gerty_should_sleep(utc_offset):
-        refresh = 8 * 60 * 60
     # Include configuration so edits invalidate snapshots immediately.
     key = f"{gerty_id}:{p}:{device_type}:{colour_theme}:{updated.date()}:{gerty.json()}"
     async with image_cache.lock:
@@ -285,7 +307,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
             raise
         except Exception as exc:
             raise HTTPException(503, "Screen data temporarily unavailable.") from exc
-        updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+        updated = local_time(gerty, datetime.now(timezone.utc))
         if photo:
             png = await asyncio.to_thread(render_gallery, photo.data, profile)
         elif slug == "wallet_history":
@@ -324,8 +346,13 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         content=json.dumps(
             {
                 "schema_version": 1,
+                "sleep_mode": False,
                 "image_url": str(
-                    request.url_for("gerty_image", revision=snapshot.revision)
+                    request.url_for(
+                        "gerty_image", revision=snapshot.revision
+                    ).include_query_params(preview="true")
+                    if preview
+                    else request.url_for("gerty_image", revision=snapshot.revision)
                 ),
                 "image_revision": snapshot.revision,
                 "refresh_seconds": refresh,
@@ -350,40 +377,68 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
 @gerty_api_router.get("/api/v1/gerty/fees-recommended/{gerty_id}")
 async def api_gerty_get_fees_recommended(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("fees_recommended", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/hashrate-1w/{gerty_id}")
 async def api_gerty_get_hashrate_1w(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("hashrate_1w", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/hashrate-1m/{gerty_id}")
 async def api_gerty_get_hashrate_1m(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("hashrate_1m", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/statistics/{gerty_id}")
 async def api_gerty_get_statistics(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("statistics", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/difficulty-adjustment/{gerty_id}")
 async def api_gerty_get_difficulty_adjustment(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("difficulty_adjustment", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/tip-height/{gerty_id}")
 async def api_gerty_get_tip_height(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("tip_height", gerty)
 
 
 @gerty_api_router.get("/api/v1/gerty/mempool/{gerty_id}")
 async def api_gerty_get_mempool(gerty_id):
     gerty = await get_gerty(gerty_id)
+    if not gerty:
+        raise HTTPException(404, "Gerty does not exist.")
+    if sleep := sleep_data(gerty):
+        return JSONResponse(sleep, headers={"Cache-Control": "no-store"})
     return await get_mempool_info("mempool", gerty)

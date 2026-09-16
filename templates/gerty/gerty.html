@@ -45,7 +45,7 @@
         try {
           const {data} = await LNbits.api.request(
             'GET',
-            `/gerty/api/v1/gerty/pages/{{gerty}}/${page}`
+            `/gerty/api/v1/gerty/pages/{{gerty}}/${page}?preview=true`
           )
           this.imageUrl = data.image_url
           this.page = data.page

@@ -417,18 +417,46 @@
           <q-tooltip>Hit enter to add values</q-tooltip>
         </q-select>
 
-        <q-input
+        <q-select
           filled
           dense
-          type="number"
-          min="-24"
-          max="24"
-          step="1"
-          v-model.trim="formDialog.data.utc_offset"
-          label="UTC Time Offset"
-          placeholder='e.g. "-1" for UTC -1'
+          use-input
+          input-debounce="0"
+          v-model="formDialog.data.display_preferences._schedule.timezone"
+          :options="timezoneOptions"
+          @filter="filterTimezones"
+          label="Timezone"
           class="q-pb-sm"
-        ></q-input>
+        ></q-select>
+        <q-checkbox
+          v-model="formDialog.data.display_preferences._schedule.enabled"
+          label="Enable Sleep Time"
+        ></q-checkbox>
+        <div
+          v-if="formDialog.data.display_preferences._schedule.enabled"
+          class="q-mt-sm"
+        >
+          <q-input
+            filled
+            dense
+            type="time"
+            label="Sleep time"
+            v-model="formDialog.data.display_preferences._schedule.sleep_time"
+            class="q-pb-sm"
+          ></q-input>
+          <q-input
+            filled
+            dense
+            type="time"
+            label="Wake time"
+            v-model="formDialog.data.display_preferences._schedule.wake_time"
+            class="q-pb-sm"
+          ></q-input>
+          <p class="text-caption">
+            During scheduled sleep, all devices enter deep sleep until wake
+            time.
+          </p>
+        </div>
 
         <q-toggle
           label="*Advanced"
@@ -547,6 +575,7 @@
             rowsPerPage: 10
           }
         },
+        timezoneOptions: [],
         settingsDialog: {
           show: false,
           data: {}
@@ -556,9 +585,10 @@
           data: {
             type: 'Mini Gerty',
             exchange: 'USD',
-            utc_offset: new Date().getTimezoneOffset(),
+            utc_offset: 0,
             display_preferences: {
               _display: {profile: 'epaper_960x540', theme: 'Orange Pill'},
+              _schedule: {timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', enabled: false, sleep_time: '22:00', wake_time: '06:00'},
               _gallery: [],
               gallery: false,
               dashboard: false,
@@ -592,6 +622,12 @@
       }
     },
     methods: {
+      filterTimezones(value, update) {
+        update(() => {
+          const zones = {{ timezones | tojson }}
+          this.timezoneOptions = zones.filter(zone => zone.toLowerCase().includes(value.toLowerCase()))
+        })
+      },
       async loadGallerySettings() {
         const response = await LNbits.api.request(
           'GET',
@@ -764,7 +800,8 @@
           refresh_time: 300,
           display_preferences: {
             _display: {profile: 'epaper_960x540', theme: 'Orange Pill'},
-            _gallery: [],
+            _schedule: {timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', enabled: false, sleep_time: '22:00', wake_time: '06:00'},
+              _gallery: [],
             gallery: false
           }
         }
@@ -803,6 +840,10 @@
         )) {
           vm.formDialog.data.display_preferences[key] = false
         }
+        this.formDialog.data.display_preferences._schedule = {
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          enabled: false, sleep_time: '22:00', wake_time: '06:00'
+        }
         this.formDialog.data.display_preferences._gallery = []
         this.formDialog.data.display_preferences._display = {
           profile: 'epaper_960x540',
@@ -826,11 +867,13 @@
           this.formDialog.data.display_preferences = JSON.parse(
             gerty.display_preferences
           )
+          const legacyTimezone = gerty.utc_offset ? `Etc/GMT${gerty.utc_offset > 0 ? '-' : '+'}${Math.abs(gerty.utc_offset)}` : 'UTC'
           this.formDialog.data.display_preferences = {
             bitcoin_history: false,
             wallet_history: false,
             gallery: false,
-            _gallery: [],
+            _schedule: {timezone: legacyTimezone, enabled: false, sleep_time: '22:00', wake_time: '06:00'},
+              _gallery: [],
             ...this.formDialog.data.display_preferences
           }
           this.formDialog.data.display_preferences._display = {

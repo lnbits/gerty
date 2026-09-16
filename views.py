@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from zoneinfo import available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -18,7 +19,12 @@ def gerty_renderer():
 @gerty_generic_router.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: User = Depends(check_user_exists)):
     return gerty_renderer().TemplateResponse(
-        "gerty/index.html", {"request": request, "user": user.json()}
+        "gerty/index.html",
+        {
+            "request": request,
+            "user": user.json(),
+            "timezones": sorted(available_timezones()),
+        },
     )
 
 
