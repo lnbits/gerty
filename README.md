@@ -156,8 +156,9 @@ X axis and balance is labelled on the Y axis.
 
 ### Gallery
 
-Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo
-becomes a page in the rotation, using the configured refresh time. Photos are center-cropped to fill the
+Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Gallery occupies one page in the rotation. A random photo is selected whenever
+that page refreshes, using the configured refresh time. Repeated requests within
+that interval show the same cached photo; random selections may repeat. Photos are center-cropped to fill the
 selected display; e-paper displays use 16-level grayscale.
 
 Large photos are resized in the browser before upload: the longest side is at
