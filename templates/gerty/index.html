@@ -322,6 +322,12 @@
         <q-checkbox
           class="q-pl-md"
           size="xs"
+          v-model="formDialog.data.display_preferences.wallet_history"
+          label="Wallet history"
+        ></q-checkbox>
+        <q-checkbox
+          class="q-pl-md"
+          size="xs"
           v-model="formDialog.data.display_preferences.dashboard_onchain"
           val="xs"
           label="Onchain"
@@ -376,7 +382,7 @@
         ></q-select>
 
         <q-select
-          v-if="formDialog.data.display_preferences.lnbits_wallets_balance"
+          v-if="formDialog.data.display_preferences.lnbits_wallets_balance || formDialog.data.display_preferences.wallet_history"
           filled
           multiple
           dense
@@ -387,7 +393,8 @@
           multiple
           hide-dropdown-icon
           new-value-mode="add-unique"
-          label="Invoice keys of wallets to watch (hit enter)"
+          :max-values="formDialog.data.display_preferences.wallet_history ? 1 : undefined"
+          :label="formDialog.data.display_preferences.wallet_history ? 'Wallet invoice key (hit enter)' : 'Invoice keys of wallets to watch (hit enter)'"
         >
           <q-tooltip>Hit enter to add values</q-tooltip>
         </q-select>
@@ -557,6 +564,7 @@
               dashboard: false,
               fun_satoshi_quotes: false,
               bitcoin_history: false,
+              wallet_history: false,
               fun_exchange_market_rate: false,
               dashboard_onchain: false,
               mempool_recommended_fees: false,
@@ -717,7 +725,10 @@
         this.formDialog.data.refresh_time = 300
       },
       setWallets() {
-        if (!this.formDialog.data.display_preferences.lnbits_wallets_balance) {
+        if (
+          !this.formDialog.data.display_preferences.lnbits_wallets_balance &&
+          !this.formDialog.data.display_preferences.wallet_history
+        ) {
           this.formDialog.data.lnbits_wallets = []
         }
       },
@@ -817,6 +828,7 @@
           )
           this.formDialog.data.display_preferences = {
             bitcoin_history: false,
+            wallet_history: false,
             gallery: false,
             _gallery: [],
             ...this.formDialog.data.display_preferences
@@ -836,6 +848,17 @@
         this.formDialog.show = true
       },
       sendFormDataGerty() {
+        if (
+          this.formDialog.data.display_preferences.wallet_history &&
+          this.formDialog.data.lnbits_wallets.length > 1
+        ) {
+          this.$q.notify({
+            type: 'warning',
+            message:
+              'Wallet history supports one wallet. Remove extra invoice keys.'
+          })
+          return
+        }
         if (this.galleryUploading) return
         if (
           this.formDialog.data.display_preferences.gallery &&
