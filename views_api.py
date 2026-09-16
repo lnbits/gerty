@@ -29,6 +29,7 @@ from .gallery import (
     get_gallery_asset,
     render_gallery,
     validate_gallery,
+    validate_gallery_image,
 )
 from .helpers import (
     gerty_should_sleep,
@@ -59,6 +60,12 @@ async def api_gallery_upload(request: Request, user: User = Depends(check_user_e
         file = form.get("file")
         if not isinstance(file, UploadFile):
             raise HTTPException(422, "Select a photo to upload.")
+        # Check headers before LNbits generates a thumbnail or decodes the image.
+        contents = await file.read(limits["max_bytes"] + 1)
+        if len(contents) > limits["max_bytes"]:
+            raise HTTPException(422, "Photo exceeds the LNbits asset size limit.")
+        await asyncio.to_thread(validate_gallery_image, contents)
+        await file.seek(0)
         try:
             service = import_module("lnbits.core.services.assets")
             asset = await service.create_user_asset(user.id, file, False)
@@ -238,55 +245,57 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
     key = f"{gerty_id}:{p}:{device_type}:{colour_theme}:{updated.date()}:{gerty.json()}"
     async with image_cache.lock:
         snapshot = image_cache.fresh(key)
-        if snapshot is None:
-            try:
-                photo = None
-                if slug.startswith("gallery:"):
-                    wallet = await get_wallet(gerty.wallet) if gerty.wallet else None
-                    if not wallet:
-                        raise HTTPException(404, "Gallery wallet no longer exists.")
-                    photo = await get_gallery_asset(wallet.user, slug.split(":", 1)[1])
-                data = (
-                    {}
-                    if photo
+    if snapshot is None:
+        try:
+            photo = None
+            if slug.startswith("gallery:"):
+                wallet = await get_wallet(gerty.wallet) if gerty.wallet else None
+                if not wallet:
+                    raise HTTPException(404, "Gallery wallet no longer exists.")
+                photo = await get_gallery_asset(wallet.user, slug.split(":", 1)[1])
+            data = (
+                {}
+                if photo
+                else (
+                    history_screen(history_events, updated, refresh)
+                    if slug == "bitcoin_history"
                     else (
-                        history_screen(history_events, updated, refresh)
-                        if slug == "bitcoin_history"
-                        else (
-                            await get_block_explorer_data()
-                            if slug == "block_explorer"
-                            else await get_screen_data(p, screens, gerty)
-                        )
+                        await get_block_explorer_data()
+                        if slug == "block_explorer"
+                        else await get_screen_data(p, screens, gerty)
                     )
                 )
-            except HTTPException:
-                raise
-            except Exception as exc:
-                raise HTTPException(
-                    503, "Screen data temporarily unavailable."
-                ) from exc
-            updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
-            if photo:
-                png = await asyncio.to_thread(render_gallery, photo.data, profile)
-            elif profile["mode"] == "RGB":
-                png = await asyncio.to_thread(
-                    render_colour_screen,
-                    data,
-                    slug,
-                    updated.strftime("%H:%M"),
-                    colour_theme,
-                    height=profile["height"],
-                    width=profile["width"],
-                )
-            elif slug == "block_explorer":
-                png = await asyncio.to_thread(
-                    render_block_explorer, data, updated.strftime("%H:%M")
-                )
-            else:
-                png = await asyncio.to_thread(
-                    render_screen, data, slug, updated.strftime("%H:%M")
-                )
-            snapshot = image_cache.put(key, png, refresh)
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, "Screen data temporarily unavailable.") from exc
+        updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+        if photo:
+            png = await asyncio.to_thread(render_gallery, photo.data, profile)
+        elif profile["mode"] == "RGB":
+            png = await asyncio.to_thread(
+                render_colour_screen,
+                data,
+                slug,
+                updated.strftime("%H:%M"),
+                colour_theme,
+                height=profile["height"],
+                width=profile["width"],
+            )
+        elif slug == "block_explorer":
+            png = await asyncio.to_thread(
+                render_block_explorer, data, updated.strftime("%H:%M")
+            )
+        else:
+            png = await asyncio.to_thread(
+                render_screen, data, slug, updated.strftime("%H:%M")
+            )
+        async with image_cache.lock:
+            # A concurrent request may already have populated this cache key.
+            snapshot = image_cache.fresh(key)
+            if snapshot is None:
+                snapshot = image_cache.put(key, png, refresh)
     return Response(
         content=json.dumps(
             {

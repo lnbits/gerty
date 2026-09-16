@@ -7,6 +7,8 @@ from fastapi import HTTPException
 from lnbits.settings import settings
 from PIL import Image, ImageEnhance, ImageOps
 
+MAX_GALLERY_PIXELS = 2_000_000
+
 
 def gallery_enabled():
     return getattr(settings, "lnbits_max_assets_per_user", 0) > 0
@@ -69,8 +71,26 @@ async def validate_gallery(preferences, user_id):
         await get_gallery_asset(user_id, asset_id)
 
 
+def open_gallery_image(contents):
+    # Image.open reads headers lazily. Check before EXIF transpose/load/convert,
+    # all of which may allocate the full decoded image.
+    try:
+        source = Image.open(BytesIO(contents))
+    except (Image.DecompressionBombError, OSError, ValueError) as exc:
+        raise HTTPException(422, "Invalid or oversized Gallery photo.") from exc
+    if source.width * source.height > MAX_GALLERY_PIXELS:
+        source.close()
+        raise HTTPException(422, "Gallery photos must not exceed 2 million pixels.")
+    return source
+
+
+def validate_gallery_image(contents):
+    with open_gallery_image(contents):
+        pass
+
+
 def render_gallery(contents, profile):
-    with Image.open(BytesIO(contents)) as source:
+    with open_gallery_image(contents) as source:
         photo = ImageOps.exif_transpose(source).convert("RGBA")
         photo = ImageOps.fit(
             photo,

@@ -185,7 +185,7 @@ def test_upload_uses_lnbits_storage_and_limits(monkeypatch):
         asyncio.run(views_api.api_gallery_upload(request, user))
     assert error.value.status_code == 403
 
-    limits.return_value = {"enabled": True}
+    limits.return_value = {"enabled": True, "max_bytes": 1500000}
     create = AsyncMock(return_value=SimpleNamespace(id="stored"))
     real_import = importlib.import_module
     monkeypatch.setattr(
@@ -204,3 +204,60 @@ def test_upload_uses_lnbits_storage_and_limits(monkeypatch):
         asyncio.run(views_api.api_gallery_upload(request, user))
     assert error.value.status_code == 422
     assert error.value.detail == "File limit exceeded"
+
+
+def png_header(width, height):
+    import struct
+    import zlib
+
+    data = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    crc = zlib.crc32(b"IHDR" + data)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + struct.pack(">I", len(data))
+        + b"IHDR"
+        + data
+        + struct.pack(">I", crc)
+        + b"\x00\x00\x00\x00IDAT"
+    )
+
+
+@pytest.mark.parametrize("size", [(2001, 1000), (1000, 2001), (20000, 20000)])
+def test_oversized_gallery_rejected_before_decode(monkeypatch, size):
+    def must_not_decode(*_args, **_kwargs):
+        pytest.fail("Oversized photo was decoded")
+
+    monkeypatch.setattr(Image.Image, "load", must_not_decode)
+    monkeypatch.setattr(gallery.ImageOps, "exif_transpose", must_not_decode)
+    with pytest.raises(HTTPException) as error:
+        gallery.render_gallery(png_header(*size), DISPLAY_PROFILES["epaper_960x540"])
+    assert error.value.status_code == 422
+
+
+def test_pixel_limit_is_inclusive():
+    gallery.validate_gallery_image(png_header(2000, 1000))
+
+
+def test_oversized_upload_rejected_before_lnbits_thumbnail(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from fastapi import Request
+    from lnbits.core.models import User
+    from starlette.datastructures import UploadFile
+
+    request = MagicMock(spec=Request)
+    user = MagicMock(spec=User)
+    user.id = "user"
+    upload = UploadFile(filename="large.png", file=BytesIO(png_header(2001, 1000)))
+    request.form.return_value.__aenter__ = AsyncMock(return_value={"file": upload})
+    request.form.return_value.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        views_api,
+        "gallery_limits",
+        AsyncMock(return_value={"enabled": True, "max_bytes": 1500000}),
+    )
+    # The local test LNbits has no asset service; reaching it would fail this test.
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(views_api.api_gallery_upload(request, user))
+    assert error.value.status_code == 422
+    assert "2 million pixels" in error.value.detail
