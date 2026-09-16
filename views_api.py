@@ -5,9 +5,10 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from lnbits.core.crud import get_user
-from lnbits.core.models import WalletTypeInfo
-from lnbits.decorators import require_admin_key, require_invoice_key
+from lnbits.core.crud import get_user, get_wallet
+from lnbits.core.models import User, WalletTypeInfo
+from lnbits.decorators import check_user_exists, require_admin_key, require_invoice_key
+from starlette.datastructures import UploadFile
 
 from .bitcoin_history import events_on, history_screen
 from .block_explorer import get_block_explorer_data, render_block_explorer
@@ -21,13 +22,22 @@ from .crud import (
     update_gerty,
 )
 from .display_settings import DISPLAY_PROFILES, get_display_settings
+from .gallery import (
+    gallery_enabled,
+    gallery_ids,
+    gallery_limits,
+    get_gallery_asset,
+    render_gallery,
+    validate_gallery,
+    validate_gallery_image,
+)
 from .helpers import (
     gerty_should_sleep,
     get_satoshi,
     get_screen_data,
-    get_screen_slug_by_index,
 )
 from .image_cache import image_cache
+from .mempool_security import validate_mempool_change
 from .models import CreateGerty, Gerty
 from .rendering import render_screen
 from .wallet_history import get_wallet_history_data, render_wallet_history
@@ -41,6 +51,35 @@ def validate_history_wallet(data):
         keys = json.loads(data.lnbits_wallets or "[]")
         if not isinstance(keys, list) or len(keys) > 1:
             raise HTTPException(422, "Wallet history supports one wallet invoice key.")
+@gerty_api_router.get("/api/v1/gallery/settings")
+async def api_gallery_settings(user: User = Depends(check_user_exists)):
+    return await gallery_limits(user.id)
+
+
+@gerty_api_router.post("/api/v1/gallery/photos")
+async def api_gallery_upload(request: Request, user: User = Depends(check_user_exists)):
+    from importlib import import_module
+
+    limits = await gallery_limits(user.id)
+    if not limits["enabled"]:
+        raise HTTPException(403, "Gallery is disabled in LNbits asset settings.")
+    # Parse only on upload so older LNbits installs can still load the extension.
+    async with request.form() as form:
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "Select a photo to upload.")
+        # Check headers before LNbits generates a thumbnail or decodes the image.
+        contents = await file.read(limits["max_bytes"] + 1)
+        if len(contents) > limits["max_bytes"]:
+            raise HTTPException(422, "Photo exceeds the LNbits asset size limit.")
+        await asyncio.to_thread(validate_gallery_image, contents)
+        await file.seek(0)
+        try:
+            service = import_module("lnbits.core.services.assets")
+            asset = await service.create_user_asset(user.id, file, False)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    return {"id": asset.id}
 
 
 @gerty_api_router.get("/api/v1/gerty", status_code=HTTPStatus.OK)
@@ -65,6 +104,10 @@ async def api_link_create(
     if data.wallet != key_info.wallet.id:
         raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not your wallet.")
     validate_history_wallet(data)
+    data.mempool_endpoint = await validate_mempool_change(
+        data.mempool_endpoint, key_info.wallet.user
+    )
+    await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
     return await create_gerty(data)
 
 
@@ -88,6 +131,10 @@ async def api_link_update(
         )
 
     validate_history_wallet(data)
+    data.mempool_endpoint = await validate_mempool_change(
+        data.mempool_endpoint, key_info.wallet.user, gerty.mempool_endpoint
+    )
+    await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
     for key, value in data.dict().items():
         setattr(gerty, key, value)
 
@@ -172,6 +219,16 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         for slug, enabled in preferences.items()
         if slug != "_display" and enabled is True
     ]
+    photo_ids = gallery_ids(preferences) if gallery_enabled() else []
+    screens = [
+        page
+        for screen in screens
+        for page in (
+            [f"gallery:{asset_id}" for asset_id in photo_ids]
+            if screen == "gallery"
+            else [screen]
+        )
+    ]
     if not screens:
         raise HTTPException(422, "Enable at least one screen.")
     if p < 0 or p >= len(screens):
@@ -194,7 +251,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
         )
     p = next((i for i in available if i >= p), available[0])
     next_page = next((i for i in available if i > p), available[0])
-    slug = get_screen_slug_by_index(p, screens)
+    slug = screens[p]
     refresh = gerty.refresh_time if gerty.refresh_time is not None else 300
     if refresh <= 0:
         raise HTTPException(422, "Refresh time must be a positive number of seconds.")
@@ -204,9 +261,18 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
     key = f"{gerty_id}:{p}:{device_type}:{colour_theme}:{updated.date()}:{gerty.json()}"
     async with image_cache.lock:
         snapshot = image_cache.fresh(key)
-        if snapshot is None:
-            try:
-                data = (
+    if snapshot is None:
+        try:
+            photo = None
+            if slug.startswith("gallery:"):
+                wallet = await get_wallet(gerty.wallet) if gerty.wallet else None
+                if not wallet:
+                    raise HTTPException(404, "Gallery wallet no longer exists.")
+                photo = await get_gallery_asset(wallet.user, slug.split(":", 1)[1])
+            data = (
+                {}
+                if photo
+                else (
                     history_screen(history_events, updated, refresh)
                     if slug == "bitcoin_history"
                     else (
@@ -219,39 +285,46 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                         )
                     )
                 )
-            except Exception as exc:
-                raise HTTPException(
-                    503, "Screen data temporarily unavailable."
-                ) from exc
-            updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
-            if slug == "wallet_history":
-                png = await asyncio.to_thread(
-                    render_wallet_history,
-                    data,
-                    updated.strftime("%H:%M"),
-                    width=profile["width"],
-                    height=profile["height"],
-                    mode=profile["mode"],
-                )
-            elif profile["mode"] == "RGB":
-                png = await asyncio.to_thread(
-                    render_colour_screen,
-                    data,
-                    slug,
-                    updated.strftime("%H:%M"),
-                    colour_theme,
-                    height=profile["height"],
-                    width=profile["width"],
-                )
-            elif slug == "block_explorer":
-                png = await asyncio.to_thread(
-                    render_block_explorer, data, updated.strftime("%H:%M")
-                )
-            else:
-                png = await asyncio.to_thread(
-                    render_screen, data, slug, updated.strftime("%H:%M")
-                )
-            snapshot = image_cache.put(key, png, refresh)
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, "Screen data temporarily unavailable.") from exc
+        updated = datetime.now(timezone.utc) + timedelta(hours=utc_offset)
+        if photo:
+            png = await asyncio.to_thread(render_gallery, photo.data, profile)
+        elif slug == "wallet_history":
+            png = await asyncio.to_thread(
+                render_wallet_history,
+                data,
+                updated.strftime("%H:%M"),
+                width=profile["width"],
+                height=profile["height"],
+                mode=profile["mode"],
+            )
+        elif profile["mode"] == "RGB":
+            png = await asyncio.to_thread(
+                render_colour_screen,
+                data,
+                slug,
+                updated.strftime("%H:%M"),
+                colour_theme,
+                height=profile["height"],
+                width=profile["width"],
+            )
+        elif slug == "block_explorer":
+            png = await asyncio.to_thread(
+                render_block_explorer, data, updated.strftime("%H:%M")
+            )
+        else:
+            png = await asyncio.to_thread(
+                render_screen, data, slug, updated.strftime("%H:%M")
+            )
+        async with image_cache.lock:
+            # A concurrent request may already have populated this cache key.
+            snapshot = image_cache.fresh(key)
+            if snapshot is None:
+                snapshot = image_cache.put(key, png, refresh)
     return Response(
         content=json.dumps(
             {
@@ -264,7 +337,7 @@ async def api_gerty_json(request: Request, gerty_id: str, p: int = 0):
                 "page": p,
                 "page_count": len(screens),
                 "next_page": next_page,
-                "screen_name": slug,
+                "screen_name": "gallery" if slug.startswith("gallery:") else slug,
                 "device_type": device_type,
                 "width": profile["width"],
                 "height": profile["height"],

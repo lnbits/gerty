@@ -46,6 +46,17 @@ make test
 After changing Python dependencies in `pyproject.toml`, run `uv lock` and commit
 the updated `uv.lock` alongside it.
 
+## Releases
+
+Pushing a version tag such as `v1.0.2` runs the release workflow. It creates a
+GitHub release with generated release notes, then updates Gerty in
+`lnbits/lnbits-extensions` and opens a pull request there.
+
+Before releasing, configure the `EXT_GITHUB` repository Actions secret with a
+token that can read and write contents and create pull requests in
+`lnbits/lnbits-extensions`. The release itself uses the automatic `GITHUB_TOKEN`.
+The workflow can be rerun to resume an existing release and update pull request.
+
 ## Image display API
 
 Choose **Device type and screen resolution** in Gerty settings:
@@ -142,3 +153,26 @@ balance). Inactive days carry the balance forward. LNbits supplies the balance h
 outgoing fees. Colour displays use rainbow equaliser bars with a fading
 reflection; e-paper uses a high-contrast grayscale version. Dates run along the
 X axis and balance is labelled on the Y axis.
+### Gallery
+
+Enable **Gallery** in Gerty settings to upload JPEG or PNG photos. Each photo
+becomes a page in the rotation, using the configured refresh time. Photos are center-cropped to fill the
+selected display; e-paper displays use 16-level grayscale.
+
+Large photos are resized in the browser before upload: the longest side is at
+most 1024 pixels, with no upscaling, and each file is at most 1.5 MB (or the
+LNbits Max Asset Size, if smaller). PNGs are
+preserved when they fit; otherwise photos are compressed as JPEGs. Only the
+resized copy is stored.
+
+Uploads use LNbits account asset storage and its configured file size, type and
+count limits (requires an LNbits version with `/api/v1/assets` support). Uploaded photos
+remain private account assets, but rendered photos can be viewed by anyone with
+the Gerty display link. Deleting a photo from Gallery immediately deletes its stored copy from LNbits files.
+Deleting a Gerty does not delete its uploaded files.
+
+Gallery follows LNbits **Settings > Assets**. The upload counter includes all
+files in the account, not just Gallery photos. Super admins and users exempted
+by LNbits have no asset-count cap; the file-size limit still applies. Setting
+**Max Assets per User** to zero disables Gallery and its uploads for everyone,
+including super admins, and skips existing Gallery pages in the display rotation.
