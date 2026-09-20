@@ -39,7 +39,7 @@ from .helpers import (
 from .image_cache import image_cache
 from .mempool_security import validate_mempool_change
 from .models import CreateGerty, Gerty
-from .rendering import render_screen
+from .rendering import DisplayProfile, render_screen
 from .sleep_schedule import local_time, sleep_data, validate_schedule
 from .wallet_history import get_wallet_history_data, render_wallet_history
 
@@ -331,11 +331,21 @@ async def api_gerty_json(
             )
         elif slug == "block_explorer":
             png = await asyncio.to_thread(
-                render_block_explorer, data, updated.strftime("%H:%M")
+                render_block_explorer,
+                data,
+                updated.strftime("%H:%M"),
+                width=profile["width"],
+                height=profile["height"],
             )
         else:
             png = await asyncio.to_thread(
-                render_screen, data, slug, updated.strftime("%H:%M")
+                render_screen,
+                data,
+                slug,
+                updated.strftime("%H:%M"),
+                profile=DisplayProfile(
+                    width=profile["width"], height=profile["height"]
+                ),
             )
         async with image_cache.lock:
             # A concurrent request may already have populated this cache key.
