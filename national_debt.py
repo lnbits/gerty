@@ -152,13 +152,14 @@ def quarter(day):
 def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange Pill"):
     """Reference-inspired debt total, recent observations and history since 1971."""
     small = width <= 240
+    readable = width == 480 and height == 320
     scale = 1 if small else min(width / 480, height / 272)
     w, h = width / scale, height / scale
     mono = mode == "L"
     palette = {
         "background": "#FFFFFF" if mono else "#050505",
         "text": "#111111" if mono else "#EEEEF0",
-        "muted": "#555555" if mono else "#A0A0AA",
+        "muted": "#555555" if mono else "#C0C0C8" if readable else "#A0A0AA",
         "border": "#DDDDDD" if mono else "#222226",
         "total": "#111111" if mono else "#1BC565",
         "up": "#111111" if mono else "#FF465C",
@@ -168,6 +169,8 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
     draw = ImageDraw.Draw(image)
 
     def text(x, y, value, size=12, role="text", anchor="lt", bold=False):
+        if readable:
+            size = max(size, 18)
         draw.text(
             (round(x * scale), round(y * scale)),
             str(value),
@@ -188,7 +191,14 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
     def change_role(value):
         return "muted" if value is None or value == 0 else "up" if value > 0 else "down"
 
-    text(w / 2, 9, "US National Debt", 16 if small else 18, "muted", "mt")
+    text(
+        w / 2,
+        9,
+        "US National Debt",
+        16 if small else 20 if readable else 18,
+        "muted",
+        "mt",
+    )
     total = data.get("total")
     headline = f"${total:,.0f}" if total is not None else "Unavailable"
     size = 48 if not small else 28
@@ -202,7 +212,7 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
     text(w / 2, 32, headline, size, "total", "mt", True)
     text(
         w / 2,
-        64 if small else 80,
+        64 if small else 78 if readable else 80,
         f"Treasury reported: {data.get('date') or 'unavailable'}",
         10,
         "muted",
@@ -212,21 +222,30 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
     ratio_label = (
         f"{ratio[-1][1]:.1f}% ({quarter(ratio[-1][0])})" if ratio else "Unavailable"
     )
-    text(w / 2, 78 if small else 94, f"Debt / GDP: {ratio_label}", 11, "text", "mt")
+    text(
+        w / 2,
+        78 if small else 98 if readable else 94,
+        f"Debt / GDP: {ratio_label}",
+        11,
+        "text",
+        "mt",
+    )
     recent = data.get("recent", [])
-    table_y = 96 if small else 114
+    table_y = 96 if small else 123 if readable else 114
     text(w / 2, table_y, "Latest Treasury updates", 11, "muted", "mt")
-    count = 2 if small else (5 if h >= 310 else 3)
-    table_left, table_right = (12, w - 12) if small else (w * 0.22, w * 0.78)
+    count = 2 if small or readable else (5 if h >= 310 else 3)
+    table_left, table_right = (
+        (12, w - 12) if small or readable else (w * 0.22, w * 0.78)
+    )
     for i, (day, value, change) in enumerate(recent[:count]):
-        y = table_y + 15 + i * 14
+        y = table_y + (21 + i * 23 if readable else 15 + i * 14)
         if i == 0:
             draw.rectangle(
                 (
                     table_left * scale,
                     (y - 2) * scale,
                     table_right * scale,
-                    (y + 12) * scale,
+                    (y + (19 if readable else 12)) * scale,
                 ),
                 fill=palette["border"],
             )
@@ -242,7 +261,7 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
         )
     if not recent:
         text(w / 2, table_y + 17, "Updates unavailable", 11, "muted", "mt")
-    chart_title_y = max(table_y + 17 + count * 14, h * 0.66)
+    chart_title_y = 194 if readable else max(table_y + 17 + count * 14, h * 0.66)
     change = data.get("month_change")
     text(
         w / 2,
@@ -252,10 +271,15 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
         change_role(change),
         "mt",
     )
-    text(w / 2, chart_title_y + 13, "Nominal debt since 1971 ($T)", 11, "muted", "mt")
+    if readable:
+        text(12, 216, "Debt since 1971 ($T)", 16, "muted")
+    else:
+        text(
+            w / 2, chart_title_y + 13, "Nominal debt since 1971 ($T)", 11, "muted", "mt"
+        )
     points = data.get("nominal", [])
     left, right = 32, w - 12
-    top, bottom = chart_title_y + 39, h - 27
+    top, bottom = (253, h - 39) if readable else (chart_title_y + 39, h - 27)
     if points:
         start, end = date(1971, 1, 1), points[-1][0]
         span = max(1, (end - start).days)
@@ -300,13 +324,33 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
             text(x(date(year, 1, 1)), bottom + 3, str(year), 9, "muted", anchor)
         marker = x(date(1971, 8, 15))
         line((marker, top, marker, bottom), "muted")
-        text(left + 3, top - 12, "Aug 1971: gold convertibility suspended", 9, "muted")
+        text(
+            left + 3,
+            top - (20 if readable else 12),
+            "Aug 1971: gold convertibility suspended",
+            9,
+            "muted",
+        )
         if not small:
-            text(right, chart_title_y + 13, quarter(end), 9, "muted", "rt")
+            text(
+                right,
+                216 if readable else chart_title_y + 13,
+                quarter(end),
+                9,
+                "muted",
+                "rt",
+            )
     else:
         text(w / 2, top, "History unavailable", 11, "muted", "mt")
     status = " | Refresh failed" if data.get("stale") else ""
-    text(w / 2, h - 10, f"Sources: Treasury / FRED{status}", 9, "muted", "mt")
+    text(
+        w / 2,
+        h - (17 if readable else 10),
+        f"Sources: Treasury / FRED{status}",
+        9,
+        "muted",
+        "mt",
+    )
     if mono:
         image = image.convert("L").point([round(v / 17) * 17 for v in range(256)])
     output = BytesIO()
