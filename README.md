@@ -208,3 +208,34 @@ The shared quote and block-explorer endpoints accept `?gerty_id=...` to apply a
 device's schedule. Account, configuration, and gallery management endpoints remain
 available during sleep. Schedule settings are stored in `display_preferences`
 as `_schedule`, with `timezone` (IANA name), `enabled`, `sleep_time`, and `wake_time`.
+
+### US national debt
+
+Enable **US national debt** in Gerty settings to add a neutral debt dashboard to
+its normal rotation. All five display profiles are supported. No API key or additional configuration is required.
+
+The full dollar headline, recent Treasury updates and 30-day change come from
+[Debt to the Penny](https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/).
+The headline is a reported observation rounded to whole dollars, not a projected
+live counter. Each recent row compares its total with the preceding reporting
+day. The 30-day baseline is the last observation on or before 30 calendar days
+before the latest observation. Decreases keep their negative sign.
+
+Colour displays use the reference's black background, green headline and red
+area chart; e-paper uses a high-contrast grayscale layout. The table shows up to
+five recent observations, reduced to three or two on shorter or smaller screens.
+There is no per-person share. The nominal debt chart starts in 1971 and marks
+August 1971's suspension of dollar-gold convertibility. Historical quarterly
+figures come from [FRED GFDEBTN](https://fred.stlouisfed.org/series/GFDEBTN).
+Debt/GDP remains a numerical statistic from
+[FRED GFDEGDQ188S](https://fred.stlouisfed.org/series/GFDEGDQ188S). The latest
+quarters are labelled separately from the daily headline (the smallest display
+omits the chart's end-quarter label). Total debt includes both publicly held and
+intragovernmental debt. This screen uses its own reference palette rather than
+the selected colour theme.
+
+Source data is shared across devices in memory: Treasury refreshes hourly and
+FRED daily. Failed refreshes retain the last successful observations and show
+“Refresh failed”; missing sources show “Unavailable”. Retries are limited to
+once per five minutes. Restarting LNbits clears this source cache. Observation
+dates remain visible, including when a source has not published newer data.
