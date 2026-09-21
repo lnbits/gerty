@@ -224,6 +224,8 @@ before the latest observation. Decreases keep their negative sign.
 Colour displays use the reference's black background, green headline and red
 area chart; e-paper uses a high-contrast grayscale layout. The table shows up to
 five recent observations, reduced to three or two on shorter or smaller screens.
+The 3.5-inch 480 × 320 layout uses at least 18-pixel supporting text, higher
+contrast labels and two full-width update rows for readability.
 There is no per-person share. The nominal debt chart starts in 1971 and marks
 August 1971's suspension of dollar-gold convertibility. Historical quarterly
 figures come from [FRED GFDEBTN](https://fred.stlouisfed.org/series/GFDEBTN).
