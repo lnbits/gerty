@@ -370,6 +370,16 @@
           val="xs"
           label="Block explorer"
         ></q-checkbox>
+        <q-checkbox
+          class="q-pl-md"
+          size="xs"
+          v-model="formDialog.data.display_preferences.national_debt"
+          label="US national debt"
+          ><q-tooltip
+            >Reported Treasury debt, recent changes, debt as a percentage of
+            GDP, and a historical chart since 1971.</q-tooltip
+          ></q-checkbox
+        >
         <br />
         <q-select
           v-if="formDialog.data.display_preferences.fun_exchange_market_rate"
@@ -597,6 +607,7 @@
               fun_satoshi_quotes: false,
               bitcoin_history: false,
               wallet_history: false,
+              national_debt: false,
               fun_exchange_market_rate: false,
               dashboard_onchain: false,
               mempool_recommended_fees: false,
@@ -873,6 +884,7 @@
           this.formDialog.data.display_preferences = {
             bitcoin_history: false,
             wallet_history: false,
+            national_debt: false,
             gallery: false,
             _schedule: {timezone: legacyTimezone, enabled: false, sleep_time: '22:00', wake_time: '06:00'},
               _gallery: [],

@@ -39,6 +39,7 @@ from .helpers import (
 from .image_cache import image_cache
 from .mempool_security import validate_mempool_change
 from .models import CreateGerty, Gerty
+from .national_debt import get_national_debt_data, render_national_debt
 from .rendering import DisplayProfile, render_screen
 from .sleep_schedule import local_time, sleep_data, validate_schedule
 from .wallet_history import get_wallet_history_data, render_wallet_history
@@ -302,23 +303,18 @@ async def api_gerty_json(
                 if not wallet:
                     raise HTTPException(404, "Gallery wallet no longer exists.")
                 photo = await get_gallery_asset(wallet.user, random.choice(photo_ids))
-            data = (
-                {}
-                if photo
-                else (
-                    history_screen(history_events, updated, refresh)
-                    if slug == "bitcoin_history"
-                    else (
-                        await get_wallet_history_data(gerty, invoice_key=pages[p][1])
-                        if slug == "wallet_history"
-                        else (
-                            await get_block_explorer_data()
-                            if slug == "block_explorer"
-                            else await get_screen_data(p, screens, gerty)
-                        )
-                    )
-                )
-            )
+            if photo:
+                data = {}
+            elif slug == "national_debt":
+                data = await get_national_debt_data()
+            elif slug == "bitcoin_history":
+                data = history_screen(history_events, updated, refresh)
+            elif slug == "wallet_history":
+                data = await get_wallet_history_data(gerty, invoice_key=pages[p][1])
+            elif slug == "block_explorer":
+                data = await get_block_explorer_data()
+            else:
+                data = await get_screen_data(p, screens, gerty)
         except HTTPException:
             raise
         except Exception as exc:
@@ -326,6 +322,15 @@ async def api_gerty_json(
         updated = local_time(gerty, datetime.now(timezone.utc))
         if photo:
             png = await asyncio.to_thread(render_gallery, photo.data, profile)
+        elif slug == "national_debt":
+            png = await asyncio.to_thread(
+                render_national_debt,
+                data,
+                width=profile["width"],
+                height=profile["height"],
+                mode=profile["mode"],
+                theme=colour_theme,
+            )
         elif slug == "wallet_history":
             png = await asyncio.to_thread(
                 render_wallet_history,
