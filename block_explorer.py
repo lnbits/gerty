@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from importlib import import_module
 from io import BytesIO
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .rendering import BOLD_FONT, FONT, panel, stipple
 
@@ -91,7 +91,7 @@ def smooth_points(points, steps=20):
     return curve
 
 
-def render_block_explorer(data, updated, now=None):
+def render_block_explorer(data, updated, now=None, *, width=960, height=540):
     now = now if now is not None else datetime.now(timezone.utc).timestamp()
     image = Image.new("L", (960, 540), 255)
     draw = ImageDraw.Draw(image)
@@ -219,6 +219,11 @@ def render_block_explorer(data, updated, now=None):
         text(left + 16, 453, labels[i], 16, anchor="mt")
     text(732, 477, "Fee rate (sat/vB)", 22, anchor="mt")
     text(944, 520, f"Updated {updated}", 20, anchor="rt")
+    if image.size != (width, height):
+        # Preserve the chart's proportions and labels on other e-paper sizes.
+        image = ImageOps.pad(
+            image, (width, height), method=Image.Resampling.LANCZOS, color=255
+        )
     image = image.point([round(i / 17) * 17 for i in range(256)])
     output = BytesIO()
     image.save(output, format="PNG")

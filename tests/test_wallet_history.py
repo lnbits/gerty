@@ -84,7 +84,13 @@ def test_empty_and_invalid_wallets(monkeypatch):
 
 @pytest.mark.parametrize(
     "width,height,mode",
-    [(240, 240, "RGB"), (480, 272, "RGB"), (480, 320, "RGB"), (960, 540, "L")],
+    [
+        (240, 240, "RGB"),
+        (480, 272, "RGB"),
+        (480, 320, "RGB"),
+        (960, 540, "L"),
+        (800, 480, "L"),
+    ],
 )
 @pytest.mark.parametrize(
     "values",
@@ -116,7 +122,14 @@ def test_display_contract(width, height, mode, values):
 
 
 @pytest.mark.parametrize(
-    "profile", ["colour_240x240", "colour_480x272", "colour_480x320", "epaper_960x540"]
+    "profile",
+    [
+        "colour_240x240",
+        "colour_480x272",
+        "colour_480x320",
+        "epaper_960x540",
+        "epaper_800x480",
+    ],
 )
 @pytest.mark.parametrize("keys", [[], ["first"], ["first", "second", "first"]])
 def test_history_manifest_and_data_failure(monkeypatch, profile, keys):

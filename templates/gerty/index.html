@@ -191,7 +191,7 @@
           emit-value
           map-options
           v-model="formDialog.data.display_preferences._display.profile"
-          :options="[{label: 'Epaper 960 x 540 (LilyGO T5-ePaper-S3)', value: 'epaper_960x540'}, {label: 'Colour 480 x 320 (Guition JC3248W535)', value: 'colour_480x320'}, {label: 'Colour 480 x 272 (Guition JC4827W543)', value: 'colour_480x272'}, {label: 'Colour 240 x 240 (Waveshare ESP32-C6 1.3 inch LCD)', value: 'colour_240x240'}]"
+          :options="[{label: 'Epaper 960 x 540 (LilyGO T5-ePaper-S3)', value: 'epaper_960x540'}, {label: 'Epaper 800 x 480 (Seeed TRMNL 7.5 inch OG DIY Kit)', value: 'epaper_800x480'}, {label: 'Colour 480 x 320 (Guition JC3248W535)', value: 'colour_480x320'}, {label: 'Colour 480 x 272 (Guition JC4827W543)', value: 'colour_480x272'}, {label: 'Colour 240 x 240 (Waveshare ESP32-C6 1.3 inch LCD)', value: 'colour_240x240'}]"
           label="Device type and screen resolution"
         ></q-select>
         <q-select
@@ -1038,6 +1038,7 @@
       galleryRatio() {
         return {
           epaper_960x540: 960 / 540,
+          epaper_800x480: 800 / 480,
           colour_480x320: 480 / 320,
           colour_480x272: 480 / 272,
           colour_240x240: 1

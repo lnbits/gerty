@@ -199,7 +199,7 @@ async def test_slow_render_does_not_block_other_devices(monkeypatch):
     async def get_data(_page, _screens, gerty):
         return {"title": gerty.name, "areas": []}
 
-    def render(data, *_args):
+    def render(data, *_args, **_kwargs):
         if data["title"] == "slow":
             started.set()
             assert release.wait(5)

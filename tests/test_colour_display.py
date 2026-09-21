@@ -68,7 +68,10 @@ def test_profile_defaults_and_invalid_theme():
 
 
 @pytest.mark.parametrize("width,height", [(480, 320), (480, 272), (240, 240)])
-def test_api_image_matches_device_and_theme(monkeypatch, width, height):
+@pytest.mark.parametrize("mono_width,mono_height", [(960, 540), (800, 480)])
+def test_api_image_matches_device_and_theme(
+    monkeypatch, width, height, mono_width, mono_height
+):
     preferences = {
         "onchain_block_height": True,
         "_display": {"profile": f"colour_{width}x{height}", "theme": "Cypherpunk"},
@@ -108,11 +111,12 @@ def test_api_image_matches_device_and_theme(monkeypatch, width, height):
             preferences["_display"]["theme"] = "Bright day"
             changed = (await client.get("/gerty/api/v1/gerty/pages/test")).json()
             assert changed["image_revision"] != manifest["image_revision"]
-            preferences["_display"]["profile"] = "epaper_960x540"
+            preferences["_display"]["profile"] = f"epaper_{mono_width}x{mono_height}"
             mono = (await client.get("/gerty/api/v1/gerty/pages/test")).json()
-            assert mono["device_type"] == "epaper_960x540"
+            assert mono["device_type"] == f"epaper_{mono_width}x{mono_height}"
+            assert (mono["width"], mono["height"]) == (mono_width, mono_height)
             png = (await client.get(mono["image_url"])).content
             image = Image.open(BytesIO(png))
-            assert image.size == (960, 540) and image.mode == "L"
+            assert image.size == (mono_width, mono_height) and image.mode == "L"
 
     asyncio.run(check())

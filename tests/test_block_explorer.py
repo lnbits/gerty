@@ -44,7 +44,8 @@ def test_missing_history_does_not_invent_intervals():
     assert data["intervals"] == []
 
 
-def test_live_png_and_small_histogram_bins():
+@pytest.mark.parametrize("width,height", [(960, 540), (800, 480)])
+def test_live_png_and_small_histogram_bins(width, height):
     data = prepare_data(
         {"height": 100},
         {
@@ -56,11 +57,14 @@ def test_live_png_and_small_histogram_bins():
         },
         [],
     )
-    png = render_block_explorer(data, "12:00", now=1000)
+    png = render_block_explorer(data, "12:00", now=1000, width=width, height=height)
     image = Image.open(BytesIO(png))
-    assert image.size == (960, 540)
+    assert image.size == (width, height)
     assert image.mode == "L"
     assert set(image.tobytes()) <= set(range(0, 256, 17))
     assert len(png) < 2 * 1024 * 1024
     data["height"] += 1
-    assert render_block_explorer(data, "12:00", now=1000) != png
+    assert (
+        render_block_explorer(data, "12:00", now=1000, width=width, height=height)
+        != png
+    )

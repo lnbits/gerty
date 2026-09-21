@@ -1,6 +1,22 @@
 """Display profiles and named palettes stored in Gerty preferences."""
 
-DISPLAY_PROFILES = {
+from typing import TypedDict
+
+
+class DisplayProfileSettings(TypedDict):
+    label: str
+    width: int
+    height: int
+    mode: str
+
+
+DISPLAY_PROFILES: dict[str, DisplayProfileSettings] = {
+    "epaper_800x480": {
+        "label": "Epaper 800 x 480 (Seeed TRMNL 7.5 inch OG DIY Kit)",
+        "width": 800,
+        "height": 480,
+        "mode": "L",
+    },
     "colour_240x240": {
         "label": "Colour 240 x 240 (ESP32-C6 1.3 inch LCD)",
         "width": 240,

@@ -61,6 +61,12 @@ The workflow can be rerun to resume an existing release and update pull request.
 
 Choose **Device type and screen resolution** in Gerty settings:
 
+- **Epaper 800 x 480 (Seeed TRMNL 7.5 inch OG DIY Kit)**: grayscale PNGs for
+  the monochrome Seeed kit. Gerty hardware converts these to black/white using
+  ordered dithering. Use firmware environment `seeed-TRMNL-7_5`; the XIAO C3
+  panel and reTerminal are different boards. The block explorer chart keeps its
+  proportions with white margins; other e-paper screens render at native size.
+
 - **Epaper 960 x 540** (default): 16-level grayscale PNG.
 - **Colour 480 x 320**: native RGB PNG layouts for the Guition JC3248W535.
 - **Colour 240 x 240**: native RGB PNG layouts for the ESP32-C6 1.3 inch LCD, with a compact Block explorer layout.
@@ -81,7 +87,7 @@ The selection is stored inside the existing JSON `display_preferences` field:
 }
 ```
 
-The page API returns `device_type` (`epaper_960x540`, `colour_480x320`, `colour_480x272`, or `colour_240x240`),
+The page API returns `device_type` (`epaper_960x540`, `epaper_800x480`, `colour_480x320`, `colour_480x272`, or `colour_240x240`),
 `width`, `height`, and `colour_theme` (null for e-paper). Its `image_url` serves
 the selected device's image. Display settings do not count as enabled pages.
 Changing profile or theme invalidates the cached snapshot. Old preferences
