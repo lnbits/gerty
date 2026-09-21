@@ -63,8 +63,10 @@ def validate_history_wallet(data):
         raise HTTPException(422, str(exc)) from exc
     if preferences.get("wallet_history") is True:
         keys = json.loads(data.lnbits_wallets or "[]")
-        if not isinstance(keys, list) or len(keys) > 1:
-            raise HTTPException(422, "Wallet history supports one wallet invoice key.")
+        if not isinstance(keys, list) or any(
+            not isinstance(key, str) or not key.strip() for key in keys
+        ):
+            raise HTTPException(422, "Wallet history requires a list of invoice keys.")
 
 
 @gerty_api_router.get("/api/v1/gallery/settings")
@@ -249,6 +251,20 @@ async def api_gerty_json(
     ]
     photo_ids = gallery_ids(preferences) if gallery_enabled() else []
     screens = [screen for screen in screens if screen != "gallery" or photo_ids]
+    history_keys = (
+        list(dict.fromkeys(json.loads(gerty.lnbits_wallets or "[]")))
+        if "wallet_history" in screens
+        else []
+    )
+    # Keep other screens in their configured position in the rotation.
+    pages = [
+        (screen, invoice_key)
+        for screen in screens
+        for invoice_key in (
+            (history_keys or [None]) if screen == "wallet_history" else [None]
+        )
+    ]
+    screens = [screen for screen, _ in pages]
     if not screens:
         raise HTTPException(422, "Enable at least one screen.")
     if p < 0 or p >= len(screens):
@@ -293,7 +309,7 @@ async def api_gerty_json(
                     history_screen(history_events, updated, refresh)
                     if slug == "bitcoin_history"
                     else (
-                        await get_wallet_history_data(gerty)
+                        await get_wallet_history_data(gerty, invoice_key=pages[p][1])
                         if slug == "wallet_history"
                         else (
                             await get_block_explorer_data()

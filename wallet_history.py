@@ -14,12 +14,13 @@ from PIL import Image, ImageDraw, ImageFont
 from .rendering import BOLD_FONT, FONT
 
 
-async def get_wallet_history_data(gerty, now=None):
+async def get_wallet_history_data(gerty, now=None, *, invoice_key=None):
     """Use LNbits' fee-inclusive balance history, filling inactive UTC days."""
     today = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date()
     days = [today - timedelta(days=29 - i) for i in range(30)]
     totals = [0] * len(days)
     seen = set()
+    wallet_name = ""
     filters = Filters(
         filters=[
             Filter.parse_query(
@@ -27,13 +28,15 @@ async def get_wallet_history_data(gerty, now=None):
             )
         ]
     )
-    for key in json.loads(gerty.lnbits_wallets or "[]"):
+    keys = [invoice_key] if invoice_key else json.loads(gerty.lnbits_wallets or "[]")
+    for key in keys:
         wallet = await get_wallet_for_key(key=key)
         if wallet is None:
             raise ValueError("A watched wallet is unavailable.")
         if wallet.id in seen:
             continue
         seen.add(wallet.id)
+        wallet_name = wallet.name
         history = await get_payments_history(
             wallet_id=wallet.id, group="day", filters=filters
         )
@@ -52,6 +55,7 @@ async def get_wallet_history_data(gerty, now=None):
     return {
         "points": list(zip(days, [value / 1000 for value in totals], strict=True)),
         "wallet_count": len(seen),
+        "wallet_name": wallet_name if len(seen) == 1 else "",
     }
 
 
@@ -84,6 +88,12 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
         )
 
     text(12 * scale, 10 * scale, "Wallet history", 22, bold=True)
+    name = data.get("wallet_name", "")
+    if name:
+        font = ImageFont.truetype(str(FONT), 12 * scale)
+        while draw.textlength(name, font=font) > width - 24 * scale:
+            name = name[:-2] + "…"
+        text(12 * scale, 34 * scale, name, 12, muted)
     count = data["wallet_count"]
     text(width - 12 * scale, height - 8 * scale, f"Updated {updated}", 12, muted, "rb")
     if not count:
@@ -98,6 +108,7 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
             mono,
             background,
             muted,
+            bool(name),
         )
     if mono:
         image = image.convert("L").point(
@@ -108,9 +119,9 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
     return output.getvalue()
 
 
-def _draw_chart(image, draw, text, points, scale, mono, background, muted):
+def _draw_chart(image, draw, text, points, scale, mono, background, muted, named=False):
     width, height = image.size
-    top, bottom = 57 * scale, int(height * 0.69)
+    top, bottom = (73 if named else 57) * scale, int(height * 0.69)
     values = [value for _, value in points]
     magnitude = max([abs(value) for value in values] + [1])
     step = 10 ** floor(log10(magnitude))

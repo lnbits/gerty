@@ -12,9 +12,9 @@ from .. import wallet_history
 def test_daily_balances_fees_gaps_and_duplicate_wallets(monkeypatch):
     now = datetime(2026, 9, 16, 12, tzinfo=timezone.utc)
     wallets = {
-        "a": SimpleNamespace(id="one", balance_msat=8000),
-        "duplicate": SimpleNamespace(id="one", balance_msat=8000),
-        "b": SimpleNamespace(id="two", balance_msat=3000),
+        "a": SimpleNamespace(id="one", name="First wallet", balance_msat=8000),
+        "duplicate": SimpleNamespace(id="one", name="First wallet", balance_msat=8000),
+        "b": SimpleNamespace(id="two", name="Other user's wallet", balance_msat=3000),
     }
     calls = []
 
@@ -53,6 +53,15 @@ def test_daily_balances_fees_gaps_and_duplicate_wallets(monkeypatch):
     assert len(result["points"]) == 30
     assert [value for _, value in result["points"]][-5:] == [3, 13, 13, 11, 11]
     assert result["points"][-1][0] == now.date()
+    for key, expected in [("a", [0, 10, 10, 8, 8]), ("b", [3] * 5)]:
+        single = asyncio.run(
+            wallet_history.get_wallet_history_data(
+                SimpleNamespace(lnbits_wallets='["a", "b"]'), now, invoice_key=key
+            )
+        )
+        assert single["wallet_count"] == 1
+        assert single["wallet_name"] == wallets[key].name
+        assert [value for _, value in single["points"]][-5:] == expected
 
 
 def test_empty_and_invalid_wallets(monkeypatch):
@@ -85,6 +94,7 @@ def test_display_contract(width, height, mode, values):
     today = datetime(2026, 9, 16).date()
     data = {
         "wallet_count": 1,
+        "wallet_name": "A long wallet title " * 10,
         "points": [
             (today - timedelta(days=29 - i), value) for i, value in enumerate(values)
         ],
@@ -108,7 +118,8 @@ def test_display_contract(width, height, mode, values):
 @pytest.mark.parametrize(
     "profile", ["colour_240x240", "colour_480x272", "colour_480x320", "epaper_960x540"]
 )
-def test_history_manifest_and_data_failure(monkeypatch, profile):
+@pytest.mark.parametrize("keys", [[], ["first"], ["first", "second", "first"]])
+def test_history_manifest_and_data_failure(monkeypatch, profile, keys):
     import json
 
     import httpx
@@ -129,12 +140,20 @@ def test_history_manifest_and_data_failure(monkeypatch, profile):
                 }
             ),
             utc_offset=0,
+            lnbits_wallets=json.dumps(keys),
             refresh_time=300,
             json=lambda: "history-test",
         )
 
-    async def get_data(_):
-        return {"wallet_count": 1, "points": [(datetime(2026, 9, 16).date(), 1000)]}
+    calls = []
+
+    async def get_data(_, *, invoice_key):
+        calls.append(invoice_key)
+        return {
+            "wallet_count": 1,
+            "wallet_name": invoice_key,
+            "points": [(datetime(2026, 9, 16).date(), 1000)],
+        }
 
     monkeypatch.setattr(views_api, "get_gerty", get_gerty)
     monkeypatch.setattr(views_api, "get_wallet_history_data", get_data)
@@ -151,13 +170,26 @@ def test_history_manifest_and_data_failure(monkeypatch, profile):
             manifest = response.json()
             assert manifest["screen_name"] == "wallet_history"
             assert manifest["next_page"] == 1
+            expected_keys = list(dict.fromkeys(keys)) or [None]
+            assert manifest["page_count"] == len(expected_keys) + 1
             png = await client.get(manifest["image_url"])
             image = Image.open(BytesIO(png.content))
             expected = DISPLAY_PROFILES[profile]
             assert image.size == (expected["width"], expected["height"])
             assert image.mode == expected["mode"]
+            if len(expected_keys) > 1:
+                second = (await client.get("/gerty/api/v1/gerty/pages/test/1")).json()
+                assert second["screen_name"] == "wallet_history"
+                assert second["next_page"] == 2
+                assert second["image_revision"] != manifest["image_revision"]
+            assert calls == expected_keys
+            # Cached pages stay distinct and stale page numbers restart rotation.
+            restarted = (await client.get("/gerty/api/v1/gerty/pages/test/99")).json()
+            assert restarted["page"] == 0
+            assert restarted["image_revision"] == manifest["image_revision"]
+            assert calls == expected_keys
 
-            async def fail(_):
+            async def fail(_, *, invoice_key):
                 raise RuntimeError("private wallet data")
 
             monkeypatch.setattr(views_api, "get_wallet_history_data", fail)
@@ -171,10 +203,8 @@ def test_history_manifest_and_data_failure(monkeypatch, profile):
 
 @pytest.mark.parametrize("enabled", [True, False])
 @pytest.mark.parametrize("keys", [[], ["one"], ["one", "two"]])
-def test_history_accepts_only_one_invoice_key(enabled, keys):
+def test_history_accepts_multiple_invoice_keys(enabled, keys):
     import json
-
-    from fastapi import HTTPException
 
     from ..views_api import validate_history_wallet
 
@@ -182,9 +212,4 @@ def test_history_accepts_only_one_invoice_key(enabled, keys):
         display_preferences=json.dumps({"wallet_history": enabled}),
         lnbits_wallets=json.dumps(keys),
     )
-    if enabled and len(keys) > 1:
-        with pytest.raises(HTTPException) as error:
-            validate_history_wallet(data)
-        assert error.value.status_code == 422
-    else:
-        validate_history_wallet(data)
+    validate_history_wallet(data)

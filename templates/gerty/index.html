@@ -388,15 +388,17 @@
           dense
           emit-value
           v-model="formDialog.data.lnbits_wallets"
+          :options="watchedWalletOptions"
+          map-options
           use-input
           use-chips
-          multiple
-          hide-dropdown-icon
           new-value-mode="add-unique"
-          :max-values="formDialog.data.display_preferences.wallet_history ? 1 : undefined"
-          :label="formDialog.data.display_preferences.wallet_history ? 'Wallet invoice key (hit enter)' : 'Invoice keys of wallets to watch (hit enter)'"
+          label="Select wallets or paste invoice keys"
         >
-          <q-tooltip>Hit enter to add values</q-tooltip>
+          <q-tooltip>
+            Select your wallet(s), or paste another wallet's invoice key and
+            press Enter.
+          </q-tooltip>
         </q-select>
 
         <q-select
@@ -891,17 +893,6 @@
         this.formDialog.show = true
       },
       sendFormDataGerty() {
-        if (
-          this.formDialog.data.display_preferences.wallet_history &&
-          this.formDialog.data.lnbits_wallets.length > 1
-        ) {
-          this.$q.notify({
-            type: 'warning',
-            message:
-              'Wallet history supports one wallet. Remove extra invoice keys.'
-          })
-          return
-        }
         if (this.galleryUploading) return
         if (
           this.formDialog.data.display_preferences.gallery &&
@@ -1024,6 +1015,12 @@
       }
     },
     computed: {
+      watchedWalletOptions() {
+        return this.g.user.wallets.map(wallet => ({
+          label: wallet.name,
+          value: wallet.inkey
+        }))
+      },
       galleryCanUpload() {
         return (
           this.gallerySettings.enabled &&
