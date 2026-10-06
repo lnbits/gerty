@@ -7,10 +7,15 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import FastAPI
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from .. import views_api
-from ..bitcoin_history import events_on, history_screen, load_events
+from ..bitcoin_history import (
+    display_description,
+    events_on,
+    history_screen,
+    load_events,
+)
 from ..colour_rendering import render_colour_screen
 from ..image_cache import ImageCache
 from ..rendering import render_screen
@@ -22,16 +27,74 @@ def test_calendar_import_and_anniversaries():
     assert events_on(date(2026, 8, 15)) == events_on(date(2030, 8, 15))
     assert any(e["title"] == "RPOW Launched" for e in events_on(date(2030, 8, 15)))
     assert all("<br" not in e["description"] for e in load_events())
+    assert all(isinstance(e["year"], int) for e in load_events())
+    assert all(
+        e["year_source"].startswith("https://bitcoin.holiday/") for e in load_events()
+    )
 
 
-def test_history_renders_both_devices():
-    now = datetime(2026, 8, 15, tzinfo=timezone.utc)
-    data = history_screen(events_on(now.date()), now, 30)
+@pytest.mark.parametrize("year", [2026, 2030])
+def test_history_uses_verified_event_year(year):
+    now = datetime(year, 10, 6, tzinfo=timezone.utc)
+    events = events_on(now.date())
+    data = history_screen(events, now, 30)
+    assert data["areas"][0][1]["value"] == "06 October 2014"
     for png, size in [
         (render_screen(data, "bitcoin_history", "12:34"), (960, 540)),
         (render_colour_screen(data, "bitcoin_history", "12:34"), (480, 320)),
     ]:
         assert Image.open(BytesIO(png)).size == size
+
+
+def test_history_renders_both_devices():
+    now = datetime(2026, 8, 15, tzinfo=timezone.utc)
+    data = history_screen(events_on(now.date()), now, 30)
+    index = int(now.timestamp() // 30) % len(events_on(now.date()))
+    event = events_on(now.date())[index]
+    assert data["areas"][0][1]["value"] == (
+        f"15 August {event['year']} · {index + 1}/{len(events_on(now.date()))}"
+    )
+    for png, size in [
+        (render_screen(data, "bitcoin_history", "12:34"), (960, 540)),
+        (render_colour_screen(data, "bitcoin_history", "12:34"), (480, 320)),
+    ]:
+        assert Image.open(BytesIO(png)).size == size
+
+
+def test_history_removes_link_prompts_and_keeps_linked_narrative():
+    events = {event["title"]: event for event in load_events()}
+    genesis = events["Genesis Transaction Day"]
+    assert display_description(genesis) == genesis["description"].rsplit("\n\n", 1)[0]
+    moscow = events["Moscow time"]
+    assert display_description(moscow) == moscow["description"]
+
+
+def test_all_history_descriptions_render_in_full(monkeypatch):
+    drawn = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def record_text(self, xy, text, *args, **kwargs):
+        drawn.append(text)
+        return original_text(self, xy, text, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", record_text)
+    for event in load_events():
+        now = datetime.fromisoformat(event["date"]).replace(tzinfo=timezone.utc)
+        data = history_screen([event], now, 30)
+        assert data["areas"][0][2]["value"] == display_description(event)
+        expected = "".join(display_description(event).split())
+        for render in (
+            lambda data=data: render_screen(data, "bitcoin_history", "12:00"),
+            lambda data=data: render_colour_screen(data, "bitcoin_history", "12:00"),
+            lambda data=data: render_colour_screen(
+                data, "bitcoin_history", "12:00", width=240, height=240
+            ),
+        ):
+            drawn.clear()
+            render()
+            assert expected in "".join("".join(text.split()) for text in drawn), event[
+                "title"
+            ]
 
 
 @pytest.mark.parametrize(

@@ -39,9 +39,12 @@ def render_colour_screen(
         factor = 1.0
         while True:
             lines = []
+            item_starts = []
             for value, size, colour, bold in items:
+                item_starts.append(len(lines))
                 font = ImageFont.truetype(
-                    str(BOLD_FONT if bold else FONT), max(12, int(size * factor))
+                    str(BOLD_FONT if bold else FONT),
+                    max(6 if slug == "bitcoin_history" else 12, int(size * factor)),
                 )
                 line = ""
                 for word in str(value).replace("\n", " ").split():
@@ -63,12 +66,19 @@ def render_colour_screen(
                 draw.textbbox((0, 0), line, font=font, anchor="lt")[3]
                 for line, font, _ in lines
             ]
-            total = sum(heights) + max(0, len(lines) - 1) * 6
-            if total <= height or factor < 0.4:
+            gaps = [6] * max(0, len(lines) - 1)
+            if slug == "bitcoin_history" and len(item_starts) >= 3:
+                gaps = [max(2, int(6 * factor))] * max(0, len(lines) - 1)
+                gaps[item_starts[1] - 1] = max(3, int(6 * factor))
+                gaps[item_starts[2] - 1] = max(6, int(14 * factor))
+            total = sum(heights) + sum(gaps)
+            if total <= height or factor < (0.15 if slug == "bitcoin_history" else 0.4):
                 break
             factor *= 0.9
         y = top + max(0, (height - total) / 2)
-        for (line, font, colour), line_height in zip(lines, heights, strict=True):
+        for index, ((line, font, colour), line_height) in enumerate(
+            zip(lines, heights, strict=True)
+        ):
             if y + line_height > bottom:
                 break
             draw.text(
@@ -78,7 +88,7 @@ def render_colour_screen(
                 fill=palette[colour],
                 anchor="mt" if centred else "lt",
             )
-            y += line_height + 6
+            y += line_height + (gaps[index] if index < len(gaps) else 0)
 
     title = (
         "Block explorer"
@@ -129,7 +139,7 @@ def render_colour_screen(
                     size, colour, bold = (
                         (24, "accent", True)
                         if j == 0
-                        else (21, "text", False) if j == 1 else (16, "muted", False)
+                        else (16, "muted", False) if j == 1 else (21, "text", False)
                     )
                 elif slug == "fun_satoshi_quotes":
                     size, colour, bold = (
