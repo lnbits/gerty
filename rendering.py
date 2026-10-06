@@ -272,7 +272,10 @@ def render_screen(data, slug, updated, profile=EPAPER):
                 )
                 for i, (_, font) in enumerate(lines[:-1])
             ]
-            if slug in QUOTE_SCREENS and len(item_starts) > 1 and item_starts[1] > 0:
+            if slug == "bitcoin_history" and len(item_starts) >= 3:
+                gaps[item_starts[1] - 1] = 12
+                gaps[item_starts[2] - 1] = 28
+            elif slug in QUOTE_SCREENS and len(item_starts) > 1 and item_starts[1] > 0:
                 gaps[item_starts[1] - 1] = 28
             total = sum(line_heights) + sum(gaps)
             if total <= height or scale <= 0.3:

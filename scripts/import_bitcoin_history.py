@@ -81,9 +81,16 @@ if __name__ == "__main__":
     parser.add_argument("calendar", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    args.output.write_text(
-        json.dumps(
-            parse_calendar(args.calendar.read_text()), indent=2, ensure_ascii=False
-        )
-        + "\n"
-    )
+    calendar = parse_calendar(args.calendar.read_text())
+    # Retain researched years when refreshing the annual calendar export.
+    if args.output.exists():
+        existing = {
+            (event["title"], event["month_day"]): event
+            for event in json.loads(args.output.read_text())["events"]
+        }
+        for event in calendar["events"]:
+            previous = existing.get((event["title"], event["month_day"]), {})
+            for field in ("year", "year_source"):
+                if field in previous:
+                    event[field] = previous[field]
+    args.output.write_text(json.dumps(calendar, indent=2, ensure_ascii=False) + "\n")
