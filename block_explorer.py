@@ -26,7 +26,9 @@ async def get_block_explorer_data():
         ),
         timeout=30,
     )
-    return prepare_data(tip.dict(), fees.dict(), [block.dict() for block in blocks])
+    return prepare_data(
+        tip.model_dump(), fees.model_dump(), [block.model_dump() for block in blocks]
+    )
 
 
 def prepare_data(tip, fees, blocks):

@@ -129,7 +129,7 @@ def test_debt_rotation_and_native_images(monkeypatch, profile, empty):
             ),
             utc_offset=0,
             refresh_time=300,
-            json=lambda: "debt-test",
+            model_dump_json=lambda: "debt-test",
         )
 
     async def get_data():

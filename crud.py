@@ -20,7 +20,7 @@ async def create_gerty(data: CreateGerty) -> Gerty:
     gerty_id = urlsafe_short_hash()
     gerty = Gerty(
         id=gerty_id,
-        **data.dict(),
+        **data.model_dump(),
     )
     await db.insert("gerty.gertys", gerty)
     return gerty
@@ -86,7 +86,7 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
         await db.insert("gerty.mempool", mempool)
         return data
 
-    if float(time.time()) - gerty.time.timestamp() > 20:
+    if mempool.data is None or float(time.time()) - gerty.time.timestamp() > 20:
         data = await fetch_mempool_json(endpoint_url, url, address)
         mempool.data = json.dumps(data)
         mempool.time = datetime.now(timezone.utc)

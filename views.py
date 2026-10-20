@@ -22,7 +22,7 @@ async def index(request: Request, user: User = Depends(check_user_exists)):
         "gerty/index.html",
         {
             "request": request,
-            "user": user.json(),
+            "user": user.model_dump_json(),
             "timezones": sorted(available_timezones()),
         },
     )

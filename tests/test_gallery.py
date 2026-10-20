@@ -68,7 +68,7 @@ def test_gallery_rotation(monkeypatch, with_other_screen):
             wallet="wallet",
             utc_offset=0,
             refresh_time=60,
-            json=lambda: "gallery-test",
+            model_dump_json=lambda: "gallery-test",
         )
 
     async def get_wallet(wallet):
