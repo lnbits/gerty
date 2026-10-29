@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import Query
 from pydantic import BaseModel
@@ -26,12 +25,12 @@ class Gerty(BaseModel):
     type: str
     utc_offset: int
     display_preferences: str
-    refresh_time: Optional[int] = None
-    wallet: Optional[str] = None
-    lnbits_wallets: Optional[str] = None
-    mempool_endpoint: Optional[str] = None
-    exchange: Optional[str] = None
-    urls: Optional[str] = None
+    refresh_time: int | None = None
+    wallet: str | None = None
+    lnbits_wallets: str | None = None
+    mempool_endpoint: str | None = None
+    exchange: str | None = None
+    urls: str | None = None
     time: datetime = datetime.now(timezone.utc)
 
 

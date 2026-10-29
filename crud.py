@@ -1,7 +1,6 @@
 import json
 import time
 from datetime import datetime, timezone
-from typing import Optional, Union
 
 from lnbits.db import Database
 from lnbits.helpers import urlsafe_short_hash
@@ -31,7 +30,7 @@ async def update_gerty(gerty: Gerty) -> Gerty:
     return gerty
 
 
-async def get_gerty(gerty_id: str) -> Optional[Gerty]:
+async def get_gerty(gerty_id: str) -> Gerty | None:
     return await db.fetchone(
         "SELECT * FROM gerty.gertys WHERE id = :id",
         {"id": gerty_id},
@@ -39,7 +38,7 @@ async def get_gerty(gerty_id: str) -> Optional[Gerty]:
     )
 
 
-async def get_gertys(wallet_ids: Union[str, list[str]]) -> list[Gerty]:
+async def get_gertys(wallet_ids: str | list[str]) -> list[Gerty]:
     if isinstance(wallet_ids, str):
         wallet_ids = [wallet_ids]
     if not wallet_ids:
