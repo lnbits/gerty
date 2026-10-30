@@ -155,7 +155,7 @@ def test_history_manifest_and_data_failure(monkeypatch, profile, keys):
             utc_offset=0,
             lnbits_wallets=json.dumps(keys),
             refresh_time=300,
-            json=lambda: "history-test",
+            model_dump_json=lambda: "history-test",
         )
 
     calls = []

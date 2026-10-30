@@ -126,6 +126,8 @@ async def api_link_create(
     data.mempool_endpoint = await validate_mempool_change(
         data.mempool_endpoint, key_info.wallet.user
     )
+    if data.display_preferences is None:
+        raise HTTPException(status_code=422, detail="Display preferences are required.")
     await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
     return await create_gerty(data)
 
@@ -153,8 +155,10 @@ async def api_link_update(
     data.mempool_endpoint = await validate_mempool_change(
         data.mempool_endpoint, key_info.wallet.user, gerty.mempool_endpoint
     )
+    if data.display_preferences is None:
+        raise HTTPException(status_code=422, detail="Display preferences are required.")
     await validate_gallery(json.loads(data.display_preferences), key_info.wallet.user)
-    for key, value in data.dict().items():
+    for key, value in data.model_dump().items():
         setattr(gerty, key, value)
 
     gerty.wallet = key_info.wallet.id
@@ -292,7 +296,10 @@ async def api_gerty_json(
     if refresh <= 0:
         raise HTTPException(422, "Refresh time must be a positive number of seconds.")
     # Include configuration so edits invalidate snapshots immediately.
-    key = f"{gerty_id}:{p}:{device_type}:{colour_theme}:{updated.date()}:{gerty.json()}"
+    key = (
+        f"{gerty_id}:{p}:{device_type}:{colour_theme}:"
+        f"{updated.date()}:{gerty.model_dump_json()}"
+    )
     async with image_cache.lock:
         snapshot = image_cache.fresh(key)
     if snapshot is None:

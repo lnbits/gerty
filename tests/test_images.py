@@ -92,7 +92,7 @@ def test_manifest_and_image_routes(monkeypatch, refresh):
             display_preferences='{"dashboard": true, "quote": true}',
             utc_offset=0,
             refresh_time=refresh,
-            json=lambda: '{"id":"test"}',
+            model_dump_json=lambda: '{"id":"test"}',
         )
 
     async def get_data(*_):
@@ -193,7 +193,7 @@ async def test_slow_render_does_not_block_other_devices(monkeypatch):
             display_preferences='{"dashboard":true}',
             utc_offset=0,
             refresh_time=300,
-            json=lambda: gerty_id,
+            model_dump_json=lambda: gerty_id,
         )
 
     async def get_data(_page, _screens, gerty):

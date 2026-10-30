@@ -119,7 +119,7 @@ def test_rotation(monkeypatch, has_event, enabled, requested, expected, next_pag
             ),
             utc_offset=2,
             refresh_time=30,
-            json=lambda: "history-test",
+            model_dump_json=lambda: "history-test",
         )
 
     seen = []

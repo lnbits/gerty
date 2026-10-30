@@ -148,7 +148,7 @@ def test_all_device_routes_sleep_without_fetching(monkeypatch):
                 return {"title": "Preview", "areas": []}
 
             gerty.refresh_time = 300
-            gerty.json = lambda: "sleep-preview-test"
+            gerty.model_dump_json = lambda: "sleep-preview-test"
             monkeypatch.setattr(views_api, "get_screen_data", preview_data)
             response = await client.get("/api/v1/gerty/pages/test/0?preview=true")
             assert response.status_code == 200

@@ -82,7 +82,7 @@ def test_api_image_matches_device_and_theme(
             display_preferences=json.dumps(preferences),
             utc_offset=0,
             refresh_time=5,
-            json=lambda: json.dumps(preferences),
+            model_dump_json=lambda: json.dumps(preferences),
         )
 
     async def data(*_):
