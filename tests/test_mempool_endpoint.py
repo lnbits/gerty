@@ -52,3 +52,80 @@ async def test_writes_preserve_custom_endpoint(monkeypatch):
     updated = await crud.update_gerty(Gerty.parse_obj({"id": "existing", **data}))
     assert updated.mempool_endpoint == data["mempool_endpoint"]
     db.update.assert_awaited_once_with("gerty.gertys", updated)
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_public_self_destination_rejected_before_cache(monkeypatch):
+    import asyncio
+    import socket
+
+    from lnbits.settings import settings
+
+    monkeypatch.setattr(settings, "lnbits_outbound_host_ips", ["8.8.8.8"])
+    monkeypatch.setattr(settings, "lnbits_callback_url_rules", [])
+    monkeypatch.setattr(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        AsyncMock(
+            return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        ),
+    )
+    db = SimpleNamespace(fetchone=AsyncMock())
+    monkeypatch.setattr(crud, "db", db)
+    with pytest.raises(HTTPException):
+        await crud.get_mempool_info(
+            "fees_recommended",
+            SimpleNamespace(mempool_endpoint="https://alias.example"),
+        )
+    db.fetchone.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_fetch_revalidates_after_cache_check(monkeypatch):
+    import asyncio
+    import socket
+
+    from lnbits.settings import settings
+
+    from .. import mempool_security
+
+    monkeypatch.setattr(settings, "lnbits_callback_url_rules", [])
+    resolver = AsyncMock(
+        side_effect=[
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))],
+        ]
+    )
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", resolver)
+    await mempool_security.resolve_endpoint("https://mempool.example")
+    with pytest.raises(HTTPException):
+        await mempool_security.fetch_mempool_json(
+            "https://mempool.example", "/api/blocks"
+        )
+    assert resolver.await_count == 2
+
+
+@pytest.mark.anyio
+async def test_endpoint_changes_remain_superuser_only(monkeypatch):
+    from lnbits.settings import settings
+
+    from .. import mempool_security
+
+    monkeypatch.setattr(settings, "super_user", "superuser")
+    resolver = AsyncMock()
+    monkeypatch.setattr(mempool_security, "resolve_endpoint", resolver)
+    with pytest.raises(HTTPException) as exc:
+        await mempool_security.validate_mempool_change("https://custom.example", "user")
+    assert exc.value.status_code == 403
+    resolver.assert_not_awaited()
+    assert (
+        await mempool_security.validate_mempool_change(
+            "https://custom.example", "superuser"
+        )
+        == "https://custom.example"
+    )
