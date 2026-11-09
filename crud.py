@@ -64,7 +64,7 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
             url = endpoint[1]
     endpoint_url = normalize_endpoint(gerty.mempool_endpoint)
     # Validate old configurations too, before serving any cached response.
-    address = await resolve_endpoint(endpoint_url)
+    await resolve_endpoint(endpoint_url)
     mempool = await db.fetchone(
         """
         SELECT * FROM gerty.mempool
@@ -74,7 +74,7 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
         Mempool,
     )
     if not mempool:
-        data = await fetch_mempool_json(endpoint_url, url, address)
+        data = await fetch_mempool_json(endpoint_url, url)
         mempool_id = urlsafe_short_hash()
         mempool = Mempool(
             id=mempool_id,
@@ -86,7 +86,7 @@ async def get_mempool_info(end_point: str, gerty) -> dict:
         return data
 
     if mempool.data is None or float(time.time()) - gerty.time.timestamp() > 20:
-        data = await fetch_mempool_json(endpoint_url, url, address)
+        data = await fetch_mempool_json(endpoint_url, url)
         mempool.data = json.dumps(data)
         mempool.time = datetime.now(timezone.utc)
         mempool.endpoint = end_point

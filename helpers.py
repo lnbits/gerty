@@ -4,10 +4,10 @@ import random
 import textwrap
 from datetime import datetime, timedelta, timezone
 
-import httpx
 from lnbits.core.crud import get_wallet_for_key
 from lnbits.settings import settings
 from lnbits.utils.exchange_rates import satoshis_amount_as_fiat
+from lnbits.utils.safe_http import SafeHttpClient
 from loguru import logger
 
 from .crud import get_mempool_info
@@ -383,7 +383,7 @@ async def get_screen_data(screen_num: int, screens_list: list, gerty):
             areas.append(text)
     elif screen_slug == "url_checker":
         for url in json.loads(gerty.urls):
-            async with httpx.AsyncClient() as client:
+            async with SafeHttpClient(read_body=False) as client:
                 text = []
                 try:
                     response = await client.get(url)

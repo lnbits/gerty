@@ -1,12 +1,9 @@
 """Restrict custom mempool settings and pin requests to public IP addresses."""
 
-import asyncio
-import ipaddress
-import socket
-
 import httpx
 from fastapi import HTTPException
 from lnbits.settings import settings
+from lnbits.utils.safe_http import SafeHttpClient, validate_url
 
 DEFAULT_MEMPOOL_ENDPOINT = "https://mempool.space"
 
@@ -33,49 +30,11 @@ def normalize_endpoint(raw):
     return str(url).rstrip("/")
 
 
-def public_ip(address):
-    try:
-        ip = ipaddress.ip_address(address)
-    except ValueError as exc:
-        raise HTTPException(422, "Invalid mempool IP address.") from exc
-    if not ip.is_global or ip.is_multicast or ip.is_reserved or "%" in address:
-        raise HTTPException(
-            422, "Mempool URLs must resolve only to public IP addresses."
-        )
-    if isinstance(ip, ipaddress.IPv6Address):
-        if ip.ipv4_mapped:
-            public_ip(str(ip.ipv4_mapped))
-        if ip.sixtofour or ip.teredo:
-            raise HTTPException(422, "IPv6 transition addresses are not supported.")
-    return str(ip)
-
-
 async def resolve_endpoint(endpoint):
-    url = httpx.URL(endpoint)
     try:
-        ipaddress.ip_address(url.host)
-    except ValueError:
-        try:
-            records = await asyncio.wait_for(
-                asyncio.get_running_loop().getaddrinfo(
-                    url.host,
-                    url.port or (443 if url.scheme == "https" else 80),
-                    type=socket.SOCK_STREAM,
-                ),
-                timeout=5,
-            )
-        except (OSError, asyncio.TimeoutError) as exc:
-            raise HTTPException(422, "Could not resolve the mempool hostname.") from exc
-        addresses = [public_ip(record[4][0]) for record in records]
-        if not addresses:
-            raise HTTPException(
-                422, "Could not resolve the mempool hostname."
-            ) from None
-        # Prefer IPv4 on hosts without IPv6 routing; every answer is checked above.
-        return sorted(
-            set(addresses), key=lambda address: ipaddress.ip_address(address).version
-        )[0]
-    return public_ip(url.host)
+        return await validate_url(endpoint)
+    except (ValueError, httpx.InvalidURL) as exc:
+        raise HTTPException(422, "Mempool destination is not allowed.") from exc
 
 
 async def validate_mempool_change(raw, user_id, current=None):
@@ -87,15 +46,11 @@ async def validate_mempool_change(raw, user_id, current=None):
     return endpoint
 
 
-async def fetch_mempool_json(endpoint, path, address):
-    url = httpx.URL(endpoint + path)
-    # Connect to the validated IP, preserving Host and TLS certificate validation.
-    # Never resolve the hostname again or route through an environment proxy.
-    async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
-        response = await client.get(
-            url.copy_with(host=address),
-            headers={"Host": url.netloc.decode("ascii")},
-            extensions={"sni_hostname": url.host},
-        )
-        response.raise_for_status()
-        return response.json()
+async def fetch_mempool_json(endpoint, path):
+    try:
+        async with SafeHttpClient() as client:
+            response = await client.get(endpoint + path)
+            response.raise_for_status()
+            return response.json()
+    except (ValueError, httpx.HTTPError) as exc:
+        raise HTTPException(422, "Mempool request failed.") from exc
