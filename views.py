@@ -1,3 +1,4 @@
+import json
 from http import HTTPStatus
 from zoneinfo import available_timezones
 
@@ -36,5 +37,13 @@ async def display(request: Request, gerty_id):
             status_code=HTTPStatus.NOT_FOUND, detail="Gerty does not exist."
         )
     return gerty_renderer().TemplateResponse(
-        "gerty/gerty.html", {"request": request, "gerty": gerty_id}
+        "gerty/gerty.html",
+        {
+            "request": request,
+            "gerty": gerty_id,
+            "web_page": json.loads(gerty.display_preferences)
+            .get("_display", {})
+            .get("profile")
+            == "web_page",
+        },
     )

@@ -11,6 +11,7 @@ import httpx
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from .rendering import BOLD_FONT, FONT
+from .web_rendering import WEB_BOLD_FONT, WEB_FONT
 
 TREASURY_URL = (
     "https://api.fiscaldata.treasury.gov/services/api/"
@@ -149,8 +150,12 @@ def quarter(day):
     return f"Q{(day.month - 1) // 3 + 1} {day.year}"
 
 
-def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange Pill"):
+def render_national_debt(
+    data, *, width=960, height=540, mode="L", theme="Orange Pill", web_palette=None
+):
     """Reference-inspired debt total, recent observations and history since 1971."""
+    normal_font = WEB_FONT if web_palette else FONT
+    bold_font = WEB_BOLD_FONT if web_palette else BOLD_FONT
     small = width <= 240
     readable = width == 480 and height == 320
     scale = 1 if small else min(width / 480, height / 272)
@@ -165,6 +170,14 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
         "up": "#111111" if mono else "#FF465C",
         "down": "#111111" if mono else "#1BC565",
     }
+    if web_palette:
+        palette.update(
+            background=web_palette["background"],
+            text=web_palette["text"],
+            muted=web_palette["muted"],
+            border=web_palette["secondary"],
+            total=web_palette["accent"],
+        )
     image = Image.new("RGB", (width, height), palette["background"])
     draw = ImageDraw.Draw(image)
 
@@ -177,7 +190,7 @@ def render_national_debt(data, *, width=960, height=540, mode="L", theme="Orange
             fill=palette[role],
             anchor=anchor,
             font=ImageFont.truetype(
-                str(BOLD_FONT if bold else FONT), round(size * scale)
+                str(bold_font if bold else normal_font), round(size * scale)
             ),
         )
 

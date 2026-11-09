@@ -9,9 +9,10 @@ from math import ceil, floor, log10
 from lnbits.core.crud import get_payments_history, get_wallet_for_key
 from lnbits.core.models import PaymentFilters
 from lnbits.db import Filter, Filters
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from .rendering import BOLD_FONT, FONT
+from .web_rendering import WEB_BOLD_FONT, WEB_FONT
 
 
 async def get_wallet_history_data(gerty, now=None, *, invoice_key=None):
@@ -66,13 +67,21 @@ def _label(value):
     return f"{value:g}"
 
 
-def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
+def render_wallet_history(
+    data, updated, *, width=480, height=320, mode="RGB", web_palette=None
+):
     """Native-size segmented bars with a mirrored, fading reflection."""
     mono = mode == "L"
-    scale = 2 if width >= 900 else 1
+    scale = width // 480 if web_palette else (2 if width >= 900 else 1)
+    normal_font = WEB_FONT if web_palette else FONT
+    bold_font = WEB_BOLD_FONT if web_palette else BOLD_FONT
     background = (255, 255, 255) if mono else (5, 7, 14)
     ink = (25, 25, 25) if mono else (235, 241, 255)
     muted = (85, 85, 85) if mono else (154, 167, 191)
+    if web_palette:
+        background = ImageColor.getrgb(web_palette["background"])
+        ink = ImageColor.getrgb(web_palette["text"])
+        muted = ImageColor.getrgb(web_palette["muted"])
     image = Image.new("RGB", (width, height), background)
     draw = ImageDraw.Draw(image)
 
@@ -84,13 +93,15 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
             str(value),
             fill=fill,
             anchor=anchor,
-            font=ImageFont.truetype(str(BOLD_FONT if bold else FONT), size * scale),
+            font=ImageFont.truetype(
+                str(bold_font if bold else normal_font), size * scale
+            ),
         )
 
     text(12 * scale, 10 * scale, "Wallet history", 22, bold=True)
     name = data.get("wallet_name", "")
     if name:
-        font = ImageFont.truetype(str(FONT), 12 * scale)
+        font = ImageFont.truetype(str(normal_font), 12 * scale)
         while draw.textlength(name, font=font) > width - 24 * scale:
             name = name[:-2] + "…"
         text(12 * scale, 34 * scale, name, 12, muted)
@@ -109,6 +120,7 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
             background,
             muted,
             bool(name),
+            web_palette,
         )
     if mono:
         image = image.convert("L").point(
@@ -119,7 +131,18 @@ def render_wallet_history(data, updated, *, width=480, height=320, mode="RGB"):
     return output.getvalue()
 
 
-def _draw_chart(image, draw, text, points, scale, mono, background, muted, named=False):
+def _draw_chart(
+    image,
+    draw,
+    text,
+    points,
+    scale,
+    mono,
+    background,
+    muted,
+    named=False,
+    web_palette=None,
+):
     width, height = image.size
     top, bottom = (73 if named else 57) * scale, int(height * 0.69)
     values = [value for _, value in points]
@@ -128,7 +151,7 @@ def _draw_chart(image, draw, text, points, scale, mono, background, muted, named
     maximum = ceil(magnitude / step) * step
     minimum = -maximum if min(values, default=0) < 0 else 0
     ticks = (maximum, (maximum + minimum) / 2, minimum)
-    font = ImageFont.truetype(str(FONT), 12 * scale)
+    font = ImageFont.truetype(str(WEB_FONT if web_palette else FONT), 12 * scale)
     left = (
         ceil(max(draw.textlength(_label(value), font=font) for value in ticks))
         + 8 * scale
@@ -157,6 +180,10 @@ def _draw_chart(image, draw, text, points, scale, mono, background, muted, named
             (0.78 + i / max(1, len(points) - 1) * 0.88) % 1, 0.86, 1
         )
         colour = (35, 35, 35) if mono else tuple(int(channel * 255) for channel in rgb)
+        if web_palette:
+            colour = ImageColor.getrgb(
+                web_palette["accent" if i % 2 == 0 else "secondary"]
+            )
         x1 = int(left + i * pitch + 2 * scale)
         x2 = max(x1, int(left + (i + 1) * pitch - scale))
         low, high = sorted((int(zero), int(y(value))))

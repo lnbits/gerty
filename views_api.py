@@ -22,7 +22,7 @@ from .crud import (
     get_mempool_info,
     update_gerty,
 )
-from .display_settings import DISPLAY_PROFILES, get_display_settings
+from .display_settings import COLOUR_THEMES, DISPLAY_PROFILES, get_display_settings
 from .gallery import (
     gallery_enabled,
     gallery_ids,
@@ -236,7 +236,13 @@ async def api_gerty_image(revision: str, preview: bool = False):
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}")
 @gerty_api_router.get("/api/v1/gerty/pages/{gerty_id}/{p}")
 async def api_gerty_json(
-    request: Request, gerty_id: str, p: int = 0, preview: bool = False
+    request: Request,
+    gerty_id: str,
+    p: int = 0,
+    preview: bool = False,
+    web_primary: str = Query(default="#ea611d", pattern=r"^#[0-9a-fA-F]{6}$"),
+    web_secondary: str = Query(default="#e56f35", pattern=r"^#[0-9a-fA-F]{6}$"),
+    web_dark: bool = True,
 ):
     gerty = await get_gerty(gerty_id)
     if not gerty:
@@ -249,6 +255,14 @@ async def api_gerty_json(
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     profile = DISPLAY_PROFILES[device_type]
+    web_palette = None
+    if device_type == "web_page":
+        web_palette = {
+            **COLOUR_THEMES["Midnight" if web_dark else "Paper"],
+            "accent": web_primary,
+            "secondary": web_secondary,
+            "border": web_secondary,
+        }
     screens = [
         slug
         for slug, enabled in preferences.items()
@@ -298,7 +312,7 @@ async def api_gerty_json(
     # Include configuration so edits invalidate snapshots immediately.
     key = (
         f"{gerty_id}:{p}:{device_type}:{colour_theme}:"
-        f"{updated.date()}:{gerty.model_dump_json()}"
+        f"{updated.date()}:{gerty.model_dump_json()}:{web_palette}"
     )
     async with image_cache.lock:
         snapshot = image_cache.fresh(key)
@@ -337,6 +351,7 @@ async def api_gerty_json(
                 height=profile["height"],
                 mode=profile["mode"],
                 theme=colour_theme,
+                web_palette=web_palette,
             )
         elif slug == "wallet_history":
             png = await asyncio.to_thread(
@@ -346,6 +361,7 @@ async def api_gerty_json(
                 width=profile["width"],
                 height=profile["height"],
                 mode=profile["mode"],
+                web_palette=web_palette,
             )
         elif profile["mode"] == "RGB":
             png = await asyncio.to_thread(
@@ -354,6 +370,8 @@ async def api_gerty_json(
                 slug,
                 updated.strftime("%H:%M"),
                 colour_theme,
+                palette=web_palette,
+                render_scale=4 if device_type == "web_page" else 1,
                 height=profile["height"],
                 width=profile["width"],
             )

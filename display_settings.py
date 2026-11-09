@@ -11,6 +11,12 @@ class DisplayProfileSettings(TypedDict):
 
 
 DISPLAY_PROFILES: dict[str, DisplayProfileSettings] = {
+    "web_page": {
+        "label": "Web page",
+        "width": 1920,
+        "height": 1088,
+        "mode": "RGB",
+    },
     "epaper_800x480": {
         "label": "Epaper 800 x 480 (Seeed TRMNL 7.5 inch OG DIY Kit)",
         "width": 800,

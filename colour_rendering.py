@@ -9,18 +9,33 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .display_settings import COLOUR_THEMES
 from .rendering import BOLD_FONT, FONT, SCREEN_TITLES, SINGLE_STATS
+from .web_rendering import WEB_BOLD_FONT, WEB_FONT, ScaledDraw
 
 
 def render_colour_screen(
-    data, slug, updated, theme="Orange Pill", *, height=320, width=480
+    data,
+    slug,
+    updated,
+    theme="Orange Pill",
+    *,
+    height=320,
+    width=480,
+    palette=None,
+    render_scale=1,
 ):
-    palette = COLOUR_THEMES[theme]
+    palette = palette or COLOUR_THEMES[theme]
     image = Image.new("RGB", (width, height), palette["background"])
+    width //= render_scale
+    height //= render_scale
     compact = width <= 240
-    draw = ImageDraw.Draw(image)
+    draw = (
+        ScaledDraw(image, render_scale) if render_scale > 1 else ImageDraw.Draw(image)
+    )
+    normal_font = WEB_FONT if render_scale > 1 else FONT
+    bold_font = WEB_BOLD_FONT if render_scale > 1 else BOLD_FONT
 
     def text(x, y, value, size=20, colour="text", bold=False, anchor="lt"):
-        font = ImageFont.truetype(str(BOLD_FONT if bold else FONT), size)
+        font = ImageFont.truetype(str(bold_font if bold else normal_font), size)
         draw.text((x, y), str(value), font=font, fill=palette[colour], anchor=anchor)
 
     def card(box):
@@ -43,7 +58,7 @@ def render_colour_screen(
             for value, size, colour, bold in items:
                 item_starts.append(len(lines))
                 font = ImageFont.truetype(
-                    str(BOLD_FONT if bold else FONT),
+                    str(bold_font if bold else normal_font),
                     max(6 if slug == "bitcoin_history" else 12, int(size * factor)),
                 )
                 line = ""
@@ -97,7 +112,7 @@ def render_colour_screen(
     )
     title_size = 22 if compact else 26
     while (
-        draw.textlength(title, font=ImageFont.truetype(str(BOLD_FONT), title_size))
+        draw.textlength(title, font=ImageFont.truetype(str(bold_font), title_size))
         > width - 24
         and title_size > 12
     ):
@@ -170,7 +185,7 @@ def render_colour_screen(
                     while (
                         size > 12
                         and draw.textlength(
-                            value, font=ImageFont.truetype(str(FONT), size)
+                            value, font=ImageFont.truetype(str(normal_font), size)
                         )
                         > right - left - 12
                     ):
